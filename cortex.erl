@@ -14,16 +14,16 @@ gen(ExoSelf_PId,Node)->
 	spawn(Node,?MODULE,loop,[ExoSelf_PId]).
 
 loop(ExoSelf_PId) ->
-	receive 
+	receive
 		{ExoSelf_PId,{Id,SPIds,APIds,NPIds},TotSteps} ->
 			put(start_time,now()),
 			Init_loc=[1,1],
 			[SPId ! {self(),sync,Init_loc} || SPId <- SPIds],
-			loop(Id,ExoSelf_PId,SPIds,{APIds,APIds},NPIds,TotSteps,_)
+			loop(Id,ExoSelf_PId,SPIds,{APIds,APIds},NPIds,TotSteps,Init_loc)
 	end.
 %The gen/2 function spawns the cortex element, which immediately starts to wait for a the state message from the same process that spawned it, exoself. The initial state message contains the sensor, actuator, and neuron PId lists. The message also specifies how many total Sense-Think-Act cycles the Cortex should execute before terminating the NN system. Once we implement the learning algorithm, the termination criteria will depend on the fitness of the NN, or some other useful property
 
-loop(Id,ExoSelf_PId,SPIds,{_APIds,MAPIds},NPIds,0,_) ->
+loop(Id,ExoSelf_PId,SPIds,{_APIds,MAPIds},NPIds,0,Last_loc) ->
 	TimeDif = timer:now_diff(now(),get(start_time)),
 	io:format("Cortex:~p is backing up and terminating.~n",[Id]),
 	io:format("Operational time:~p~n",[TimeDif]),
@@ -32,8 +32,8 @@ loop(Id,ExoSelf_PId,SPIds,{_APIds,MAPIds},NPIds,0,_) ->
 	[PId ! {self(),terminate} || PId <- SPIds],
 	[PId ! {self(),terminate} || PId <- MAPIds],
 	[PId ! {self(),termiante} || PId <- NPIds];
-loop(Id,ExoSelf_PId,SPIds,{[APId|APIds],MAPIds},NPIds,Step,_) ->
-	receive 
+loop(Id,ExoSelf_PId,SPIds,{[APId|APIds],MAPIds},NPIds,Step,Last_loc) ->
+	receive
 		{APId,sync,Hunter_loc} ->
 			loop(Id,ExoSelf_PId,SPIds,{APIds,MAPIds},NPIds,Step,Hunter_loc);
 		terminate ->
@@ -44,15 +44,15 @@ loop(Id,ExoSelf_PId,SPIds,{[APId|APIds],MAPIds},NPIds,Step,_) ->
 	end;
 loop(Id,ExoSelf_PId,SPIds,{[],MAPIds},NPIds,Step,Hunter_loc)->
 	[PId ! {self(),sync,Hunter_loc} || PId <- SPIds],
-	loop(Id,ExoSelf_PId,SPIds,{MAPIds,MAPIds},NPIds,Step-1,_).
+	loop(Id,ExoSelf_PId,SPIds,{MAPIds,MAPIds},NPIds,Step-1,Hunter_loc).
 %The cortex's goal is to synchronize the the NN system such that when the actuators have received all their control signals, the sensors are once again triggered to gather new sensory information. Thus the cortex waits for the sync messages from the actuator PIds in its system, and once it has received all the sync messages, it triggers the sensors and then drops back to waiting for a new set of sync messages. The cortex stores 2 copies of the actuator PIds: the APIds, and the MemoryAPIds (MAPIds). Once all the actuators have sent it the sync messages, it can restore the APIds list from the MAPIds. Finally, there is also the Step variable which decrements every time a full cycle of Sense-Think-Act completes, once this reaches 0, the NN system begins its termination and backup process.
 
-	get_backup([NPId|NPIds],Acc)->
-		NPId ! {self(),get_backup},
-		receive
-			{NPId,NId,WeightTuples}->
-				get_backup(NPIds,[{NId,WeightTuples}|Acc])
-		end;
-	get_backup([],Acc)->
-		Acc.
+get_backup([NPId|NPIds],Acc)->
+	NPId ! {self(),get_backup},
+	receive
+		{NPId,NId,WeightTuples}->
+			get_backup(NPIds,[{NId,WeightTuples}|Acc])
+	end;
+get_backup([],Acc)->
+	Acc.
 %During backup, cortex contacts all the neurons in its NN and requests for the neuron's Ids and their Input_IdPs. Once the updated Input_IdPs from all the neurons have been accumulated, the list is sent to exoself for the actual backup and storage.

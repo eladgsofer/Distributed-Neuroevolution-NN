@@ -10,28 +10,32 @@
 -compile([debug_info]).
 -include("records.hrl").
 
-gen(ExoSelf_PId,Node)->
-	spawn(Node,?MODULE,loop,[ExoSelf_PId]).
+gen(ExoSelf_PId,Node, FirstHunterLoc)->
+	spawn(Node,?MODULE,loop,[ExoSelf_PId, FirstHunterLoc]).
 
-loop(ExoSelf_PId) -> 
-	receive 
+loop(ExoSelf_PId, PrevLocation) ->
+	receive
 		{ExoSelf_PId,{Id,Cx_PId,ActuatorName,Fanin_PIds}} ->
-			loop(Id,Cx_PId,ActuatorName,{Fanin_PIds,Fanin_PIds},[])
+			loop(Id,Cx_PId,ActuatorName,{Fanin_PIds,Fanin_PIds},PrevLocation,[])
 	end.
 %When gen/2 is executed it spawns the actuator element and immediately begins to wait for its initial state message.
 
-loop(Id,Cx_PId,AName,{[From_PId|Fanin_PIds],MFanin_PIds},Acc) ->
+loop(Id,Cx_PId,AName,{[From_PId|Fanin_PIds],MFanin_PIds},PrevHunterLoc,Acc) ->
 	receive
 		{From_PId,forward,Input} ->
-			loop(Id,Cx_PId,AName,{Fanin_PIds,MFanin_PIds},lists:append(Input,Acc));
-		{Cx_PId,terminate} ->
-			ok
+			loop(Id,Cx_PId,AName,{Fanin_PIds,MFanin_PIds},PrevHunterLoc,lists:append(Input,Acc));
+		{Cx_PId,terminate} -> ok
 	end;
-loop(Id,Cx_PId,AName,{[],MFanin_PIds},Acc)->
+
+loop(Id,Cx_PId,AName,{[],MFanin_PIds}, PrevHunterLoc, Acc)->
 	Result = lists:reverse(Acc),
 	actuator:AName(Result),
-	Cx_PId ! {self(),sync,Result},
-	loop(Id,Cx_PId,AName,{MFanin_PIds,MFanin_PIds},[]).
+	[X, Y] = [extractStep(Point) || Point<-Result],
+	[PrevX, PrevY] = PrevHunterLoc,
+	HunterLoc = [PrevX + X, PrevY + Y],
+
+	Cx_PId ! {self(),sync,HunterLoc},
+	loop(Id,Cx_PId,AName,{MFanin_PIds,MFanin_PIds}, HunterLoc,[]).
 %The actuator process gathers the control signals from the neurons, appending them to the accumulator. The order in which the signals are accumulated into a vector is in the same order as the neuron ids are stored within NIds. Once all the signals have been gathered, the actuator sends cortex the sync signal, executes its function, and then again begins to wait for the neural signals from the output layer by reseting the Fanin_PIds from the second copy of the list.
 
 pts(Result)->
@@ -39,3 +43,9 @@ pts(Result)->
 	io:format("actuator:pts(Result): ~p~n",[Result]).
 %The pts actuation function simply prints to screen the vector passed to it.
 
+extractStep(Point) ->
+	if
+		Point>0.3 ->  1;
+		Point=<-0.3 -> -1;
+		true -> 0
+	end.

@@ -24,6 +24,7 @@ loop(Id,Cx_PId,SensorName,VL,Fanout_PIds,[Curr_loc|SensoryVector])->
 	receive
 		{Cx_PId,sync,Hunter_loc}->
 			Input_vec = Curr_loc++Hunter_loc,
+			io:format("Sensor input vector: ~p~n",[Input_vec]),
 			%SensoryVector = sensor:SensorName(VL),
 			[Pid ! {self(),forward,Input_vec} || Pid <- Fanout_PIds],
 			loop(Id,Cx_PId,SensorName,VL,Fanout_PIds,SensoryVector);
@@ -32,12 +33,12 @@ loop(Id,Cx_PId,SensorName,VL,Fanout_PIds,[Curr_loc|SensoryVector])->
 	end.
 %The sensor process accepts only 2 types of messages, both from the cortex. The sensor can either be triggered to begin gathering sensory data based on its sensory role, or terminate if the cortex requests so.
 
-rng(VL)->
-	rng(VL,[]).
-rng(0,Acc)->
-	Acc;
-rng(VL,Acc)-> 
-	rng(VL-1,[random:uniform()|Acc]).
+%rng(VL)->
+	%rng(VL,[]).
+%rng(0,Acc)->
+	%Acc;
+%rng(VL,Acc)->
+%	rng(VL-1,[random:uniform()|Acc]).
 
 %'rng' is a simple random number generator that produces a vector of random values, each between 0 and 1. The length of the vector is defined by the VL, which itself is specified within the sensor record.
 
