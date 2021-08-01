@@ -10,56 +10,86 @@
 
 -include("records.hrl").
 
+
 map()-> map(ffnn).
 map(FileName)->
 	{ok,Genotype} = file:consult(FileName),
 	spawn(exoself,map,[FileName,Genotype]).
-map(FileName,Genotype)->
+
+% FileName with NN_ID
+map(FileName, Genotype, NNid, MutId, ETS)->
+	% -record(genotype, {nn_id, scoring_list, processes_info}).
+	NN_Entry = case ets:member(ETS, NNid) of
+							true -> ets:lookup(ETS, NNid);
+							false-> E =  #nn_rec{nn_id = NNid, score=0, processes_info = []},
+								ets:insert(ETS,E) , E
+						 end,
+
+	% Tracking pids to kill the network
 	IdsNPIds = ets:new(idsNpids,[set,private]),
 	[Cx|CerebralUnits] = Genotype,
+
 	Sensor_Ids = Cx#cortex.sensor_ids,
 	Actuator_Ids = Cx#cortex.actuator_ids,
 	NIds = Cx#cortex.nids,
+
+	% Spawn all entities
 	spawn_CerebralUnits(IdsNPIds,cortex,[Cx#cortex.id]),
 	spawn_CerebralUnits(IdsNPIds,sensor,Sensor_Ids),
 	spawn_CerebralUnits(IdsNPIds,actuator,Actuator_Ids),
 	spawn_CerebralUnits(IdsNPIds,neuron,NIds),
+
+	% Counting how many processes in this Mutation iteration
+	Processes_Count = lists:flatlength(Sensor_Ids ++ Actuator_Ids ++ NIds),
+	ProcessesInfo = lists:append(NN_Entry#nn_rec.processes_info, {list_to_atom("MutId_" ++ integer_to_list(MutId)), Processes_Count}),
+
+	% Initialize entities
 	link_CerebralUnits(CerebralUnits,IdsNPIds),
 	link_Cortex(Cx,IdsNPIds),
 	Cx_PId = ets:lookup_element(IdsNPIds,Cx#cortex.id,2),
 	receive
-		{Cx_PId,backup,Neuron_IdsNWeights}->
+		% Writing to a file in the end of the process
+		{Cx_PId,score_and_backup,{Neuron_IdsNWeights, Score}}->
 			U_Genotype = update_genotype(IdsNPIds,Genotype,Neuron_IdsNWeights),
 			{ok, File} = file:open(FileName, write),
 			lists:foreach(fun(X) -> io:format(File, "~p.~n",[X]) end, U_Genotype),
 			file:close(File),
-			io:format("Finished updating to file:~p~n",[FileName])
+			io:format("Finished updating to file:~p~n",[FileName]),
+			ets:insert(ETS, NN_Entry#nn_rec{processes_info = ProcessesInfo, score=Score}),
+			io:format("Score:~p|Processes:~p~n",[Score, ProcessesInfo]), {NNid, {score, Score}, {processesInfo, ProcessesInfo}}
+		% update the genotype score
 	end.
 %The map/1 function maps the tuple encoded genotype into a process based phenotype. The map function expects for the Cx record to be the leading tuple in the tuple list it reads from the FileName. We create an ets table to map Ids to PIds and back again. Since the Cortex element contains all the Sensor, Actuator, and Neuron Ids, we are able to spawn each neuron using its own gen function, and in the process construct a map from Ids to PIds. We then use link_CerebralUnits to link all non Cortex elements to each other by sending each spawned process the information contained in its record, but with Ids converted to Pids where appropriate. Finally, we provide the Cortex process with all the PIds in the NN system by executing the link_Cortex/2 function. Once the NN is up and running, exoself starts its wait until the NN has finished its job and is ready to backup. When the cortex initiates the backup process it sends exoself the updated Input_PIdPs from its neurons. Exoself uses the update_genotype/3 function to update the old genotype with new weights, and then stores the updated version back to its file.
 
 spawn_CerebralUnits(IdsNPIds,CerebralUnitType,[Id|Ids])->
-	InitLoc = [1,1],
+
 	PId = case CerebralUnitType of
-					actuator-> CerebralUnitType:gen(self(),node(), InitLoc);
+					actuator-> InitLoc = [?HUNTER_INIT_LOC,?HUNTER_INIT_LOC],
+						CerebralUnitType:gen(self(),node(), InitLoc);
 					_-> CerebralUnitType:gen(self(),node())
 				end,
+	% Insert pids and ids
 	ets:insert(IdsNPIds,{Id,PId}),
 	ets:insert(IdsNPIds,{PId,Id}),
+
 	spawn_CerebralUnits(IdsNPIds,CerebralUnitType,Ids);
-spawn_CerebralUnits(_IdsNPIds,_CerebralUnitType,[])->
-	true.
+spawn_CerebralUnits(_IdsNPIds,_CerebralUnitType,[])-> true.
 %We spawn the process for each element based on its type: CerebralUnitType, and the gen function that belongs to the CerebralUnitType module. We then enter the {Id,PId} tuple into our ETS table for later use.
 
 link_CerebralUnits([R|Records],IdsNPIds) when is_record(R,sensor) ->
 	SId = R#sensor.id,
 	SPId = ets:lookup_element(IdsNPIds,SId,2),
 	Cx_PId = ets:lookup_element(IdsNPIds,R#sensor.cx_id,2),
+
 	SName = R#sensor.name,
 	Fanout_Ids = R#sensor.fanout_ids,
 	Fanout_PIds = [ets:lookup_element(IdsNPIds,Id,2) || Id <- Fanout_Ids],
-	SensoryVector=[[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [6, 6], [7, 7], [8, 8], [9, 9], [10, 10]],
+	SensoryVector=[[I,I]||I<-lists:seq(1,?SIM_ITERATIONS)],
+
+	% Init message
 	SPId ! {self(),{SId,Cx_PId,SName,R#sensor.vl,Fanout_PIds,SensoryVector}},
 	link_CerebralUnits(Records,IdsNPIds);
+
 link_CerebralUnits([R|Records],IdsNPIds) when is_record(R,actuator) ->
 	AId = R#actuator.id,
 	APId = ets:lookup_element(IdsNPIds,AId,2),
@@ -69,6 +99,7 @@ link_CerebralUnits([R|Records],IdsNPIds) when is_record(R,actuator) ->
 	Fanin_PIds = [ets:lookup_element(IdsNPIds,Id,2) || Id <- Fanin_Ids],
 	APId ! {self(),{AId,Cx_PId,AName,Fanin_PIds}},
 	link_CerebralUnits(Records,IdsNPIds);
+
 link_CerebralUnits([R|Records],IdsNPIds) when is_record(R,neuron) ->
 	NId = R#neuron.id,
 	NPId = ets:lookup_element(IdsNPIds,NId,2),
@@ -80,14 +111,17 @@ link_CerebralUnits([R|Records],IdsNPIds) when is_record(R,neuron) ->
 	Output_PIds = [ets:lookup_element(IdsNPIds,Id,2) || Id <- Output_Ids],
 	NPId ! {self(),{NId,Cx_PId,AFName,Input_PIdPs,Output_PIds}},
 	link_CerebralUnits(Records,IdsNPIds);
-link_CerebralUnits([],_IdsNPIds)->
-	ok.
+
+link_CerebralUnits([],_IdsNPIds)-> ok.
 
 convert_IdPs2PIdPs(_IdsNPIds,[{bias,Bias}],Acc)->
 	lists:reverse([Bias|Acc]);
 convert_IdPs2PIdPs(IdsNPIds,[{Id,Weights}|Fanin_IdPs],Acc)->
 	convert_IdPs2PIdPs(IdsNPIds,Fanin_IdPs,[{ets:lookup_element(IdsNPIds,Id,2),Weights}|Acc]).
-%The link_CerebralUnits/2 converts the Ids to PIds using the created IdsNPids ETS table. At this point all the elements are spawned, and the processes are waiting for their initial states. 'convert_IdPs2PIdPs' converts the IdPs tuples into tuples that use PIds instead of Ids, such that the Neuron will know which weights are to be associated with which incoming vector signals. The last element is the bias, which is added to the list in a non tuple form. Afterwards, the list is reversed to take its proper order.
+%The link_CerebralUnits/2 converts the Ids to PIds using the created IdsNPids ETS table. At this point all the elements are spawned, and the processes are waiting for their
+% initial states. 'convert_IdPs2PIdPs' converts the IdPs tuples into tuples that use PIds instead of Ids, such that the Neuron will
+% know which weights are to be associated with which incoming vector signals. The last element is the bias, which is added
+% to the list in a non tuple form. Afterwards, the list is reversed to take its proper order.
 
 link_Cortex(Cx,IdsNPIds) ->
 	Cx_Id = Cx#cortex.id,
@@ -109,8 +143,7 @@ update_genotype(IdsNPIds,Genotype,[{N_Id,PIdPs}|WeightPs])->
 	U_Genotype = lists:keyreplace(N_Id, 2, Genotype, U_N),
 	%io:format("N:~p~n U_N:~p~n Genotype:~p~n U_Genotype:~p~n",[N,U_N,Genotype,U_Genotype]),
 	update_genotype(IdsNPIds,U_Genotype,WeightPs);
-update_genotype(_IdsNPIds,Genotype,[])->
-	Genotype.
+update_genotype(_IdsNPIds,Genotype,[])-> Genotype.
 
 convert_PIdPs2IdPs(IdsNPIds,[{PId,Weights}|Input_PIdPs],Acc)->
 	convert_PIdPs2IdPs(IdsNPIds,Input_PIdPs,[{ets:lookup_element(IdsNPIds,PId,2),Weights}|Acc]);

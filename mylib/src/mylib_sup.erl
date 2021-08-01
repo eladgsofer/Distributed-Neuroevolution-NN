@@ -1,9 +1,9 @@
 %%%-------------------------------------------------------------------
-%% @doc test top level supervisor.
+%% @doc mylib top level supervisor.
 %% @end
 %%%-------------------------------------------------------------------
 
--module(test_sup).
+-module(mylib_sup).
 
 -behaviour(supervisor).
 
@@ -13,8 +13,7 @@
 
 -define(SERVER, ?MODULE).
 
-start_link() -> A =4,
-  B =3, exoself:map(),
+start_link() ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, []).
 
 %% sup_flags() = #{strategy => strategy(),         % optional

@@ -1,8 +1,8 @@
-{application, test,
+{application, mylib,
  [{description, "An OTP application"},
   {vsn, "0.1.0"},
   {registered, []},
-  {mod, {test_app, []}},
+  {mod, {mylib_app, []}},
   {applications,
    [kernel,
     stdlib
