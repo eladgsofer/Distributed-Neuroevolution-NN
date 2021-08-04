@@ -16,12 +16,12 @@ gen(ExoSelf_PId,Node)->
 % Init state
 loop(PhenotypePid) ->
 	receive 
-		{PhenotypePid, {Id,Cx_PId,SensorName,VL,Fanout_PIds,SensoryVector}} ->
-			loop(Id,Cx_PId,SensorName,VL,Fanout_PIds,SensoryVector)
+		{PhenotypePid, {Id,Cx_PId,SensorName,VL,Fanout_PIds, RabbitVector}} ->
+			loop(Id,Cx_PId,SensorName,VL,Fanout_PIds, RabbitVector)
 	end.
 %When gen/2 is executed it spawns the sensor element and immediately begins to wait for its initial state message.
 
-loop(Id,Cx_PId,SensorName,VL,Fanout_PIds,[RabbitLoc|SensoryVector])->
+loop(Id,Cx_PId,SensorName,VL,Fanout_PIds,[RabbitLoc| RabbitVector])->
 	receive
 		{Cx_PId,sync,Hunter_loc}->
 			%io:format("HUNTER!!||~p||Rabbit!!~p~n", RabbitLoc, Hunter_loc),
@@ -30,9 +30,10 @@ loop(Id,Cx_PId,SensorName,VL,Fanout_PIds,[RabbitLoc|SensoryVector])->
 			io:format("Sensor input vector: ~p~n",[Input_vec]),
 			%SensoryVector = sensor:SensorName(VL),
 			[Pid ! {self(),forward,Input_vec} || Pid <- Fanout_PIds],
-			loop(Id,Cx_PId,SensorName,VL,Fanout_PIds,SensoryVector);
+			loop(Id,Cx_PId,SensorName,VL,Fanout_PIds, RabbitVector);
 		{Cx_PId,terminate} -> ok
 	end.
+
 %The sensor process accepts only 2 types of messages, both from the cortex. The sensor can either be triggered to begin gathering sensory data based on its sensory role, or terminate if the cortex requests so.
 
 %rng(VL)->

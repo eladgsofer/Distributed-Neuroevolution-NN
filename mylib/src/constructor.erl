@@ -14,7 +14,6 @@ construct_Genotype(FileName, SensorName,ActuatorName,HiddenLayerDensities)->
 	% Creating The data structures records
 	% #sensor{id={sensor,generate_id()},name=rng,vl=4};
 	% %#actuator{id={actuator,generate_id()},name=pts,vl=2};
-
 	S = create_Sensor(SensorName),
 	A = create_Actuator(ActuatorName),
 	Cx_Id = {cortex,generate_id()},

@@ -17,14 +17,7 @@ map(FileName)->
 	spawn(exoself,map,[FileName,Genotype]).
 
 % FileName with NN_ID
-map(FileName, Genotype, NNid, MutId, ETS)->
-	% -record(genotype, {nn_id, scoring_list, processes_info}).
-	NN_Entry = case ets:member(ETS, NNid) of
-							true -> ets:lookup(ETS, NNid);
-							false-> E =  #nn_rec{nn_id = NNid, score=0, processes_info = []},
-								ets:insert(ETS,E) , E
-						 end,
-
+map(FileName, Genotype, NNid)->
 	% Tracking pids to kill the network
 	IdsNPIds = ets:new(idsNpids,[set,private]),
 	[Cx|CerebralUnits] = Genotype,
@@ -40,8 +33,7 @@ map(FileName, Genotype, NNid, MutId, ETS)->
 	spawn_CerebralUnits(IdsNPIds,neuron,NIds),
 
 	% Counting how many processes in this Mutation iteration
-	Processes_Count = lists:flatlength(Sensor_Ids ++ Actuator_Ids ++ NIds),
-	ProcessesInfo = lists:append(NN_Entry#nn_rec.processes_info, {list_to_atom("MutId_" ++ integer_to_list(MutId)), Processes_Count}),
+	ProcessesCount = lists:flatlength(Sensor_Ids ++ Actuator_Ids ++ NIds) + 1,
 
 	% Initialize entities
 	link_CerebralUnits(CerebralUnits,IdsNPIds),
@@ -49,14 +41,13 @@ map(FileName, Genotype, NNid, MutId, ETS)->
 	Cx_PId = ets:lookup_element(IdsNPIds,Cx#cortex.id,2),
 	receive
 		% Writing to a file in the end of the process
-		{Cx_PId,score_and_backup,{Neuron_IdsNWeights, Score}}->
+		{Cx_PId,score_and_backup,{Neuron_IdsNWeights, Score, SimStepsVec}} ->
 			U_Genotype = update_genotype(IdsNPIds,Genotype,Neuron_IdsNWeights),
 			{ok, File} = file:open(FileName, write),
 			lists:foreach(fun(X) -> io:format(File, "~p.~n",[X]) end, U_Genotype),
 			file:close(File),
 			io:format("Finished updating to file:~p~n",[FileName]),
-			ets:insert(ETS, NN_Entry#nn_rec{processes_info = ProcessesInfo, score=Score}),
-			io:format("Score:~p|Processes:~p~n",[Score, ProcessesInfo]), {NNid, {score, Score}, {processesInfo, ProcessesInfo}}
+			{Score, ProcessesCount, SimStepsVec}
 		% update the genotype score
 	end.
 %The map/1 function maps the tuple encoded genotype into a process based phenotype. The map function expects for the Cx record to be the leading tuple in the tuple list it reads from the FileName. We create an ets table to map Ids to PIds and back again. Since the Cortex element contains all the Sensor, Actuator, and Neuron Ids, we are able to spawn each neuron using its own gen function, and in the process construct a map from Ids to PIds. We then use link_CerebralUnits to link all non Cortex elements to each other by sending each spawned process the information contained in its record, but with Ids converted to Pids where appropriate. Finally, we provide the Cortex process with all the PIds in the NN system by executing the link_Cortex/2 function. Once the NN is up and running, exoself starts its wait until the NN has finished its job and is ready to backup. When the cortex initiates the backup process it sends exoself the updated Input_PIdPs from its neurons. Exoself uses the update_genotype/3 function to update the old genotype with new weights, and then stores the updated version back to its file.
@@ -64,7 +55,7 @@ map(FileName, Genotype, NNid, MutId, ETS)->
 spawn_CerebralUnits(IdsNPIds,CerebralUnitType,[Id|Ids])->
 
 	PId = case CerebralUnitType of
-					actuator-> InitLoc = [?HUNTER_INIT_LOC,?HUNTER_INIT_LOC],
+					actuator-> InitLoc = ?HUNTER_INIT_LOC,
 						CerebralUnitType:gen(self(),node(), InitLoc);
 					_-> CerebralUnitType:gen(self(),node())
 				end,

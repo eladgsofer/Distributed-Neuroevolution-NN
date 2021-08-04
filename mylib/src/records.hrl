@@ -10,9 +10,8 @@
 -record(neuron, {id, cx_id, af, input_idps, output_ids}).
 -record(cortex, {id, sensor_ids, actuator_ids, nids}).
 -record(genotype, {nn_id, score, processes_info}).
--record(pop_state, {genes, backupETS,mutId, maxMutCycles, simSteps, serverId, mutIter,nn_amount, masterPid}).
 -record(nn_rec, {nn_id, score, processes_info}).
 -define(SIM_ITERATIONS, 10).
 -define(MUT_ITERATIONS, 10).
--define(HUNTER_INIT_LOC, 3).
+-define(HUNTER_INIT_LOC, [3,3]).
 -define(NN_AMOUNT, 3).
