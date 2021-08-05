@@ -15,7 +15,7 @@
 -export([start_link/4]).
 
 %% gen_statem callbacks
--export([init/1,fitting_state/3, format_status/2, calc_state/3, terminate/3, callback_mode/0]).
+-export([init/1,fitting_state/3, handle_common/3, format_status/2, calc_state/3, terminate/3, callback_mode/0]).
 -record(pop_state, {agentsMapper, genes, ets,mutId, maxMutCycles, simSteps, serverId, mutIter,nn_amount, masterPid, agentsIds}).
 
 -define(SERVER, ?MODULE).
@@ -31,8 +31,9 @@
 %% @doc Creates a gen_statem process which calls Module:init/1 to
 %% initialize. To ensure a synchronized start-up procedure, this
 %% function does not return until Module:init/1 has returned.
-start_link(NN_Amount, MaxMutCycles, Sim_Steps, ServerId) ->
-  gen_statem:start_link({global, ServerId}, ?MODULE, {NN_Amount, MaxMutCycles, Sim_Steps, ServerId}, []).
+start_link(NN_Amount, MaxMutCycles, Sim_Steps, MasterPid) ->
+  ServerId = list_to_atom(atom_to_list(node()) ++ "_" ++ "fsm"),
+  gen_statem:start_link({global, ServerId}, ?MODULE, {NN_Amount, MaxMutCycles, Sim_Steps, ServerId, MasterPid}, []).
 
 %%%===================================================================
 %%% gen_statem callbacks
@@ -45,11 +46,10 @@ start_link(NN_Amount, MaxMutCycles, Sim_Steps, ServerId) ->
 init({NN_Amount, MaxMutCycles, Sim_Steps, ServerId, MasterPid}) ->
   ETS = ets:new(genotype, [set]),
   % Initialize State
-  NN_seq = [list_to_atom("nn" ++ integer_to_list(N)) || N<-lists:seq(1,NN_Amount)],
-  NNids = [{node(), list_to_atom("nn" ++ integer_to_list(i))} || I<-NN_seq],
+  NNnames = [list_to_atom("nn" ++ integer_to_list(N)) || N<-lists:seq(1,NN_Amount)],
+  NNids = [{node(), Name} || Name<-NNnames],
   AgentsIds = [list_to_atom(atom_to_list(Node) ++ "_" ++ atom_to_list(Id)) || {Node, Id}<-NNids],
   AgentsMapper = maps:from_list([{A, false} ||A<-AgentsIds]),
-
 
   StateData = #pop_state{
     ets=ETS,
@@ -64,7 +64,7 @@ init({NN_Amount, MaxMutCycles, Sim_Steps, ServerId, MasterPid}) ->
 
   CollectorPid = self(),
 
-  agents_mgmt:start_link(ETS, NN_Amount, CollectorPid),
+  agents_mgmt:start_link(ETS, CollectorPid, NNids, AgentsIds),
   % Send the master the SeedGenes
   MasterPid ! {seedGenes, AgentsIds},
   %TODO The master sends a cast with the SeedGenes straight to CALC_STATE
@@ -76,6 +76,16 @@ init({NN_Amount, MaxMutCycles, Sim_Steps, ServerId, MasterPid}) ->
 %% @doc This function is called by a gen_statem when it needs to find out
 %% the callback mode of the callback module.
 callback_mode() -> state_functions.
+
+handle_common(cast, {sync, AgentId}, #pop_state{agentsMapper = AgentsMapper, agentsIds = AgentsIds} = Data) ->
+  UpdatedMapper = AgentsMapper#{AgentId=>true},
+  Pred = fun(_,V) -> V =:= false end,
+  SyncMapper = maps:filter(Pred,UpdatedMapper),
+  case maps:size(SyncMapper) of
+    0 -> NextMutationMapper = maps:from_list([{A, false} ||A<-AgentsIds]),
+      {next_state,calc_state, Data#pop_state{agentsMapper=NextMutationMapper},[]};
+    _-> {keep_state, Data#pop_state{agentsMapper=UpdatedMapper},[]}
+  end.
 
 %% @private
 %% @doc Called (1) whenever sys:get_status/1,2 is called by gen_statem or
@@ -93,34 +103,17 @@ calc_state(cast, {runNetwork, Genes, MutIter}, StateData = #pop_state{agentsIds 
 
   % execute all the agents
   lists:foreach(fun(ExecData) -> {Gene, Agent} = ExecData, gen_server:cast(Agent, {executeIteration, MutIter, Gene}) end ,AgentsGenesZip),
-  {next_state, fitting_state, StateData#{mutIter=MutIter}};
+  {next_state, fitting_state, StateData#pop_state{mutIter=MutIter}};
 
 calc_state(EventType, EventContent, Data) -> handle_common(EventType, EventContent, Data).
 
 fitting_state(cast, done_calc, StateData = #pop_state{ets=ETS, nn_amount = NNAmount, mutIter = MutIter,masterPid  = MasterPid}) ->
-  Scores = ets:select(ETS, {mutIter=MutIter}),
-
-  N = lists:flatlength(Scores),
-  SortedGenes = lists:keysort(2, Scores),
-  BestGenes = lists:nthtail(N/2, SortedGenes),
-  if
-    MutIter=:=NNAmount ->  MasterPid ! {done, BestGenes}, terminate(ok, fitting_state, StateData);
-    true -> MasterPid ! {in_progress, BestGenes}, {next_state, calc_state, StateData}
+  ScoredGenes = ets:select(ETS, {mutIter=MutIter}),
+  MasterPid ! {done, ScoredGenes},
   %TODO Master replies with change state
-  end;
+  {next_state, calc_state, StateData};
 
 fitting_state(EventType, EventContent, Data) -> handle_common(EventType, EventContent, Data).
-
-handle_common(cast, {AgentId, sync}, #{agentsMapper = AgentsMapper, agentsIds = AgentsIds} = Data) ->
-  UpdatedMapper = AgentsMapper#{AgentId=>true},
-  Pred = fun(_,V) -> V =:= false end,
-  SyncMapper = maps:filter(Pred,UpdatedMapper),
-    case maps:size(SyncMapper) of
-      0 -> NextMutationMapper = maps:from_list([{A, false} ||A<-AgentsIds]),
-        {next_state,calc_state, Data#{agentsMapper=NextMutationMapper},[]};
-      _-> {keep_state, Data#{agentsMapper=UpdatedMapper},[]}
-    end.
-
 
 
 %% @private

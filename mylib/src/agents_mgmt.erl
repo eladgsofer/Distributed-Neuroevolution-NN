@@ -12,7 +12,7 @@
 -behaviour(supervisor).
 
 %% API
--export([start_link/3]).
+-export([start_link/4]).
 
 %% Supervisor callbacks
 -export([init/1]).
@@ -24,7 +24,7 @@
 %%% API functions
 %%%===================================================================
 
-start_link(ETS, NN_Amount, CollectorPid) -> supervisor:start_link({local, ?SERVER}, ?MODULE, [ETS, NN_Amount, CollectorPid]).
+start_link(ETS, CollectorPid, NNids, AgentIds) -> supervisor:start_link({local, ?SERVER}, ?MODULE, [ETS, CollectorPid,NNids, AgentIds]).
 
 %%%===================================================================
 %%% Supervisor callbacks
@@ -41,24 +41,23 @@ start_link(ETS, NN_Amount, CollectorPid) -> supervisor:start_link({local, ?SERVE
     [ChildSpec :: supervisor:child_spec()]}}
   | ignore | {error, Reason :: term()}).
 
-init([ETS, CollectorPid, NNids, AtomFullIds]) ->
+init([ETS, CollectorPid, NNids, AgentIds]) ->
   MaxRestarts = 1000,
   MaxSecondsBetweenRestarts = 3600,
   SupFlags = #{strategy => one_for_one, intensity => MaxRestarts, period => MaxSecondsBetweenRestarts},
 
-  SeedGenes = [{Id, constructor:construct_Genotype(Id,rng,pts,[3,2])} || Id <- NNids],
-  AgentConstructors = lists:zip(AtomFullIds, SeedGenes),
+  ZippedIds = lists:zip(NNids, AgentIds),
+  AgentConstructors = [{NNId, AgentId, constructor:construct_Genotype(AgentId,rng,pts,[3,2])} || {NNId, AgentId} <- ZippedIds],
   %TODO TRANSFER LAYERS
-
-  MutId = 0,
+  io:format("####~p###~n",[AgentConstructors]),
 
   Childs =
-    [#{id=>NNid,
-      start => {'agent', start_link, [CollectorPid, ETS, NNid, SeedGene, MutId, AtomFullId]},
+    [ #{id=>NNid,
+      start => {'agent', start_link, [CollectorPid, ETS, NNid, SeedGene, AgentId]},
       restart => permanent,
       shutdown => 2000,
       type => worker,
-      modules => ['agent']} || {AtomFullId, {NNid, SeedGene}}<-AgentConstructors],
+      modules => ['agent']} || {NNid, AgentId, SeedGene}<-AgentConstructors],
 
   {ok, {SupFlags, Childs}}.
 
