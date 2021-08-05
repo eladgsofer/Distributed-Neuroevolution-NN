@@ -10,6 +10,8 @@
 -author("elad.sofer").
 
 %% API
--export([generateServerId/1]).
+-export([generateServerId/1,generateServerId/2]).
 
 generateServerId(Module)-> list_to_atom(atom_to_list(node()) ++ "_" ++ atom_to_list(Module)).
+
+generateServerId(Node, Module)-> list_to_atom(atom_to_list(Node) ++ "_" ++ atom_to_list(Module)).
