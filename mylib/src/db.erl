@@ -31,10 +31,9 @@ read_all_mutateIter(Iter) ->
 select_best_genes([{NnId,Iter}|Tail]) ->select_best_genes([{NnId,Iter}|Tail],[]).
 select_best_genes([{NnId,Iter}|Tail],Acc)->
   F = fun() ->
-    Elem = #db{mutId = Iter,nn_id =NnId,gene = '_',processes_count = '_',score = '_'},
-    mnesia:select(db, [{Elem, [], ['$_']}])
+    Elem = #db{mutId = Iter,nn_id =NnId,gene = '$1',_= '_'},
+    mnesia:select(db, [{Elem, [], ['$1']}])
       end,
   {atomic,Tmp}= mnesia:transaction(F),
   select_best_genes(Tail,Acc++Tmp);
 select_best_genes([],Acc)-> Acc.
-
