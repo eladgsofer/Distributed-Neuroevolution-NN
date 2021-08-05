@@ -10,11 +10,11 @@
 -author("elad.sofer").
 -include("records.hrl").
 %% API
--export([init/3,write/5,read_all_mutateIter/1]).
+-export([init/1,write/5,read_all_mutateIter/1]).
 
-init(Node1,Node2,Node3) ->
-  mnesia:create_schema([node(),Node1,Node2,Node3]), mnesia:start(),
-  mnesia:create_table(db,[{ram_copies, [node(),Node1,Node2,Node3]},{attributes, record_info(fields,db)}]).
+init([Node_List]) ->
+  mnesia:create_schema([node()|Node_List]), mnesia:start(),
+  mnesia:create_table(db,[{ram_copies, [node()|Node_List]},{attributes, record_info(fields,nn_rec)}]).
 
 write(NN_id, MutId, Gene, Processes_count, Score) ->
   Tmp = #nn_rec{nn_id = NN_id,mutId = MutId,gene = Gene,processes_count = Processes_count,score = Score},
