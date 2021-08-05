@@ -33,7 +33,7 @@
 %% function does not return until Module:init/1 has returned.
 start_link(NN_Amount, Sim_Steps, MasterPid) ->
   ServerId = utills:generateServerId(?MODULE),
-  gen_statem:start_link({global, ServerId}, ?MODULE, {NN_Amount, Sim_Steps, ServerId, MasterPid}, []).
+  gen_statem:start_link({local, ServerId}, ?MODULE, {NN_Amount, Sim_Steps, ServerId, MasterPid}, []).
 
 %%%===================================================================
 %%% gen_statem callbacks
@@ -65,7 +65,7 @@ init({NN_Amount, Sim_Steps, ServerId, MasterPid}) ->
   agents_mgmt:start_link(CollectorPid, NNids, AgentsIds),
 
   % Send the master ACK that I'm ready
-  MasterPid ! {ok, AgentsIds},
+  gen_server:cast(MasterPid, {ok, AgentsIds}),
   % call agents mgmt
   io:format("Hi I am FSM ~p~n", [ServerId]),
   {ok, calc_state, StateData}.
@@ -87,8 +87,9 @@ format_status(_Opt, [_PDict, _StateName, _State]) -> Status = some_term, Status.
 %% state name.  If callback_mode is state_functions, one of these
 %% functions is called when gen_statem receives and event from
 %% call/2, cast/2, or as a normal process message.
-calc_state(cast, {runNetwork, Genes, MutIter}, #pop_state{agentsIds = AgentsIds} =  StateData) ->
-  %TODO extract from DB the genes instead.
+calc_state(cast, {runNetwork, BestGenesIds, MutIter}, #pop_state{agentsIds = AgentsIds} =  StateData) ->
+
+  Genes = db:select_best_genes(BestGenesIds),
   AgentsGenesZip = lists:zip(Genes, AgentsIds),
 
   % execute all the agents async
