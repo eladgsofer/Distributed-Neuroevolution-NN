@@ -12,11 +12,11 @@
 -behaviour(gen_statem).
 
 %% API
--export([start_link/4]).
+-export([start_link/3]).
 
 %% gen_statem callbacks
 -export([init/1,fitting_state/3, handle_common/3, format_status/2, calc_state/3, terminate/3, callback_mode/0]).
--record(pop_state, {agentsMapper, genes, ets,mutId, maxMutCycles, simSteps, serverId, mutIter,nn_amount, masterPid, agentsIds}).
+-record(pop_state, {agentsMapper, genes, ets, simSteps, serverId, mutIter,nn_amount, masterPid, agentsIds}).
 
 -define(SERVER, ?MODULE).
 
@@ -31,9 +31,9 @@
 %% @doc Creates a gen_statem process which calls Module:init/1 to
 %% initialize. To ensure a synchronized start-up procedure, this
 %% function does not return until Module:init/1 has returned.
-start_link(NN_Amount, MaxMutCycles, Sim_Steps, MasterPid) ->
+start_link(NN_Amount, Sim_Steps, MasterPid) ->
   ServerId = list_to_atom(atom_to_list(node()) ++ "_" ++ "fsm"),
-  gen_statem:start_link({global, ServerId}, ?MODULE, {NN_Amount, MaxMutCycles, Sim_Steps, ServerId, MasterPid}, []).
+  gen_statem:start_link({global, ServerId}, ?MODULE, {NN_Amount, Sim_Steps, ServerId, MasterPid}, []).
 
 %%%===================================================================
 %%% gen_statem callbacks
@@ -43,8 +43,7 @@ start_link(NN_Amount, MaxMutCycles, Sim_Steps, MasterPid) ->
 %% @doc Whenever a gen_statem is started using gen_statem:start/[3,4] or
 %% gen_statem:start_link/[3,4], this function is called by the new
 %% process to initialize.
-init({NN_Amount, MaxMutCycles, Sim_Steps, ServerId, MasterPid}) ->
-  ETS = ets:new(genotype, [set]),
+init({NN_Amount, Sim_Steps, ServerId, MasterPid}) ->
   % Initialize State
   NNnames = [list_to_atom("nn" ++ integer_to_list(N)) || N<-lists:seq(1,NN_Amount)],
   NNids = [{node(), Name} || Name<-NNnames],
@@ -52,19 +51,16 @@ init({NN_Amount, MaxMutCycles, Sim_Steps, ServerId, MasterPid}) ->
   AgentsMapper = maps:from_list([{A, false} ||A<-AgentsIds]),
 
   StateData = #pop_state{
-    ets=ETS,
-    maxMutCycles = MaxMutCycles,
     simSteps = Sim_Steps,
     serverId = ServerId,
     masterPid = MasterPid,
-    mutId=0,
     nn_amount=NN_Amount,
     agentsMapper=AgentsMapper,
     agentsIds = AgentsIds},
 
   CollectorPid = self(),
 
-  agents_mgmt:start_link(ETS, CollectorPid, NNids, AgentsIds),
+  agents_mgmt:start_link(CollectorPid, NNids, AgentsIds),
   % Send the master the SeedGenes
   MasterPid ! {seedGenes, AgentsIds},
   %TODO The master sends a cast with the SeedGenes straight to CALC_STATE
@@ -107,9 +103,9 @@ calc_state(cast, {runNetwork, Genes, MutIter}, StateData = #pop_state{agentsIds 
 
 calc_state(EventType, EventContent, Data) -> handle_common(EventType, EventContent, Data).
 
-fitting_state(cast, done_calc, StateData = #pop_state{ets=ETS, nn_amount = NNAmount, mutIter = MutIter,masterPid  = MasterPid}) ->
-  ScoredGenes = ets:select(ETS, {mutIter=MutIter}),
-  MasterPid ! {done, ScoredGenes},
+fitting_state(cast, done_calc, StateData = #pop_state{mutIter = MutIter,masterPid  = MasterPid}) ->
+  %ScoredGenes = ets:select(ETS, {mutIter=MutIter}),
+  %MasterPid ! {done, ScoredGenes},
   %TODO Master replies with change state
   {next_state, calc_state, StateData};
 
