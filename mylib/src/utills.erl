@@ -12,4 +12,4 @@
 %% API
 -export([generateServerId/1]).
 
-generateServerId(Module)-> list_to_atom(atom_to_list(node()) ++ "_" ++ atom_to_list(?MODULE)).
+generateServerId(Module)-> list_to_atom(atom_to_list(node()) ++ "_" ++ atom_to_list(Module)).
