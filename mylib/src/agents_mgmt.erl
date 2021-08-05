@@ -24,10 +24,13 @@
 %%% API functions
 %%%===================================================================
 start_link_shell(CollectorPid, NNids, AgentIds) ->
-  {ok, Pid} = supervisor:start_link({local, ?SERVER}, ?MODULE, [CollectorPid,NNids, AgentIds]),
+  ServerId = utills:generateServerId(?MODULE),
+  {ok, Pid} = supervisor:start_link({local, ServerId}, ?MODULE, [CollectorPid,NNids, AgentIds]),
   unlink(Pid).
 
-start_link(CollectorPid, NNids, AgentIds) -> supervisor:start_link({local, ?SERVER}, ?MODULE, [CollectorPid,NNids, AgentIds]).
+start_link(CollectorPid, NNids, AgentIds) ->
+  ServerId = utills:generateServerId(?MODULE),
+  supervisor:start_link({local, ServerId}, ?MODULE, [CollectorPid,NNids, AgentIds]).
 
 %%%===================================================================
 %%% Supervisor callbacks

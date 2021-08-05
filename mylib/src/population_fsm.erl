@@ -32,7 +32,7 @@
 %% initialize. To ensure a synchronized start-up procedure, this
 %% function does not return until Module:init/1 has returned.
 start_link(NN_Amount, Sim_Steps, MasterPid) ->
-  ServerId = list_to_atom(atom_to_list(node()) ++ "_" ++ "fsm"),
+  ServerId = utills:generateServerId(?MODULE),
   gen_statem:start_link({global, ServerId}, ?MODULE, {NN_Amount, Sim_Steps, ServerId, MasterPid}, []).
 
 %%%===================================================================
@@ -94,20 +94,23 @@ format_status(_Opt, [_PDict, _StateName, _State]) -> Status = some_term, Status.
 %% state name.  If callback_mode is state_functions, one of these
 %% functions is called when gen_statem receives and event from
 %% call/2, cast/2, or as a normal process message.
-calc_state(cast, {runNetwork, Genes, MutIter}, StateData = #pop_state{agentsIds = AgentsIds}) ->
+calc_state(cast, {runNetwork, Genes, MutIter}, #pop_state{agentsIds = AgentsIds} =  StateData) ->
   AgentsGenesZip = lists:zip(Genes, AgentsIds),
-
   % execute all the agents
   lists:foreach(fun(ExecData) -> {Gene, Agent} = ExecData, gen_server:cast(Agent, {executeIteration, MutIter, Gene}) end ,AgentsGenesZip),
   {next_state, fitting_state, StateData#pop_state{mutIter=MutIter}};
 
 calc_state(EventType, EventContent, Data) -> handle_common(EventType, EventContent, Data).
 
-fitting_state(cast, done_calc, StateData = #pop_state{mutIter = MutIter,masterPid  = MasterPid}) ->
-  %ScoredGenes = ets:select(ETS, {mutIter=MutIter}),
-  %MasterPid ! {done, ScoredGenes},
-  %TODO Master replies with change state
-  {next_state, calc_state, StateData};
+fitting_state(cast, {sync, AgentId}, #pop_state{agentsMapper = AgentsMapper, agentsIds = AgentsIds} = Data) ->
+  UpdatedMapper = AgentsMapper#{AgentId=>true},
+  Pred = fun(_,V) -> V =:= false end,
+  SyncMapper = maps:filter(Pred,UpdatedMapper),
+  case maps:size(SyncMapper) of
+    0 -> NextMutationMapper = maps:from_list([{A, false} ||A<-AgentsIds]), %TODO send to master I'M DONE!
+      {next_state,calc_state, Data#pop_state{agentsMapper=NextMutationMapper},[]};
+    _-> {keep_state, Data#pop_state{agentsMapper=UpdatedMapper},[]}
+  end;
 
 fitting_state(EventType, EventContent, Data) -> handle_common(EventType, EventContent, Data).
 
