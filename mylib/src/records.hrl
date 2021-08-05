@@ -10,7 +10,7 @@
 -record(neuron, {id, cx_id, af, input_idps, output_ids}).
 -record(cortex, {id, sensor_ids, actuator_ids, nids}).
 -record(genotype, {nn_id, score, processes_info}).
--record(nn_rec, {nn_id, mutId, gene, processes_count, score}).
+-record(db, {nn_id, mutId, gene, processes_count, score}).
 -define(SIM_ITERATIONS, 10).
 -define(MUT_ITERATIONS, 10).
 -define(HUNTER_INIT_LOC, [3,3]).
