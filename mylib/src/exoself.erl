@@ -46,8 +46,10 @@ map(FileName, Genotype)->
 			{ok, File} = file:open(FileName, write),
 			lists:foreach(fun(X) -> io:format(File, "~p.~n",[X]) end, U_Genotype),
 			file:close(File),
-			io:format("Finished updating to file:~p~n",[FileName]),
+			%io:format("Finished updating to file:~p~n",[FileName]),
 			{Score, ProcessesCount, SimStepsVec}
+			%io:format("FINISHED WITH ~p~n", [Res]), Res
+
 		% update the genotype score
 	end.
 %The map/1 function maps the tuple encoded genotype into a process based phenotype. The map function expects for the Cx record to be the leading tuple in the tuple list it reads from the FileName. We create an ets table to map Ids to PIds and back again. Since the Cortex element contains all the Sensor, Actuator, and Neuron Ids, we are able to spawn each neuron using its own gen function, and in the process construct a map from Ids to PIds. We then use link_CerebralUnits to link all non Cortex elements to each other by sending each spawned process the information contained in its record, but with Ids converted to Pids where appropriate. Finally, we provide the Cortex process with all the PIds in the NN system by executing the link_Cortex/2 function. Once the NN is up and running, exoself starts its wait until the NN has finished its job and is ready to backup. When the cortex initiates the backup process it sends exoself the updated Input_PIdPs from its neurons. Exoself uses the update_genotype/3 function to update the old genotype with new weights, and then stores the updated version back to its file.

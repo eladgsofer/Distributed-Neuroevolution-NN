@@ -26,7 +26,6 @@ loop(Id,Cx_PId,SensorName,VL,Fanout_PIds,[RabbitLoc| RabbitVector])->
 		{Cx_PId,sync,Hunter_loc}->
 			%io:format("HUNTER!!||~p||Rabbit!!~p~n", RabbitLoc, Hunter_loc),
 			Input_vec = RabbitLoc++Hunter_loc,
-			io:format("!!!~p!!!", [Hunter_loc]),
 			io:format("Sensor input vector: ~p~n",[Input_vec]),
 			%SensoryVector = sensor:SensorName(VL),
 			[Pid ! {self(),forward,Input_vec} || Pid <- Fanout_PIds],

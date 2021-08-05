@@ -33,13 +33,11 @@ loop(Id,Cx_PId,AName,{[],MFanin_PIds}, PrevHunterLoc, Acc)->
 	[X_Step, Y_Step] = [calcStep(Point) || Point<-Result],
 	[PrevX, PrevY] = PrevHunterLoc,
 	HunterLoc = [PrevX + X_Step, PrevY + Y_Step],
-	io:format("ACUTATOR HUNTER:||~p~n", [HunterLoc]),
 	Cx_PId ! {self(),sync,HunterLoc},
 	loop(Id,Cx_PId,AName,{MFanin_PIds,MFanin_PIds}, HunterLoc,[]).
 %The actuator process gathers the control signals from the neurons, appending them to the accumulator. The order in which the signals are accumulated into a vector is in the same order as the neuron ids are stored within NIds. Once all the signals have been gathered, the actuator sends cortex the sync signal, executes its function, and then again begins to wait for the neural signals from the output layer by reseting the Fanin_PIds from the second copy of the list.
 
 pts(Result)->
-
 	io:format("actuator:pts(Result): ~p~n",[Result]).
 %The pts actuation function simply prints to screen the vector passed to it.
 

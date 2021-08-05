@@ -8,25 +8,25 @@
 
 -behaviour(gen_server).
 
--export([start_link/5]).
+-export([start_link/4]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
   code_change/3]).
 
 -define(SERVER, ?MODULE).
 
--record(agent_state, {ets, nnId, agentId, seedGene, collectorPid}).
+-record(agent_state, {nnId, agentId, seedGene, collectorPid}).
 -include("records.hrl").
 %%%===================================================================
 %%% Spawning and gen_server implementation
 %%%===================================================================
 
-start_link(CollectorPid, ETS, NNid, Gene, AgentId) ->
-  gen_server:start_link({local, AgentId}, ?MODULE, [CollectorPid, ETS, NNid, Gene, AgentId], []).
+start_link(CollectorPid, NNid, Gene, AgentId) ->
+  gen_server:start_link({local, AgentId}, ?MODULE, [CollectorPid, NNid, Gene, AgentId], []).
 
-init([CollectorPid, ETS, NNid, Gene, AgentId]) ->
+init([CollectorPid, NNid, Gene, AgentId]) ->
 
-  io:format("Hi I am agent:~p, Details: CollectorPid:~p|NNid:~p|Gene~p~n", [AgentId, CollectorPid, NNid, Gene]),
-  {ok, #agent_state{ets=ETS, nnId=NNid, seedGene=Gene, collectorPid=CollectorPid, agentId = AgentId}}.
+  io:format("Hi I am agent:~p, Details: CollectorPid:~p|NNid:~p|Gene~p~n~n", [AgentId, CollectorPid, NNid, Gene]),
+  {ok, #agent_state{nnId=NNid, seedGene=Gene, collectorPid=CollectorPid, agentId = AgentId}}.
 
 handle_call({run_simulation, Gene}, _From, State = #agent_state{agentId = AgentId}) ->
   % the AgentId is: <node>_nnX atom
@@ -34,7 +34,7 @@ handle_call({run_simulation, Gene}, _From, State = #agent_state{agentId = AgentI
   % {SrcPid, _} = _From,
   {reply, {ok, SimulationVec}, State}.
 
-handle_cast({executeIteration, MutId, Gene}, State = #agent_state{ets=ETS, nnId=NNid, seedGene=SeedGene, collectorPid=CollectorPid, agentId = AgentId}) ->
+handle_cast({executeIteration, MutId, Gene}, State = #agent_state{nnId=NNid, seedGene=SeedGene, collectorPid=CollectorPid, agentId = AgentId}) ->
   % NNid is the AgentId as well, each agent has it's own network to handle.
   ActualGene =
     if
@@ -45,11 +45,13 @@ handle_cast({executeIteration, MutId, Gene}, State = #agent_state{ets=ETS, nnId=
   MutatedGene = mutate:mutate(ActualGene),
   {Score, ProcessesCount, _} = exoself:map(AgentId,Gene),
   io:format("NNid:~p|Score:~p|Processes Count:~p~n",[AgentId, Score, ProcessesCount]),
+  db:write(NNid,MutId,MutatedGene,ProcessesCount, Score),
+  gen_statem:cast(CollectorPid, {sync, AgentId}),
+  {noreply, State}.
 
-  ets:insert(ETS, #nn_rec{nn_id = NNid, mutId = MutId, processes_count = ProcessesCount, score=Score, gene=MutatedGene}),
-  %gen_statem:cast(CollectorPid, {sync, AgentId}),
-  CollectorPid ! {sync, AgentId},
-  {noreply, State#agent_state{}}.
+  %io:format("ETS ~p~n############", [ets:tab2list(ETS)]),
+  %ets:insert(State#agent_state.ets, NN_REC),
+
 
 
 handle_info(_Info, State = #agent_state{}) ->

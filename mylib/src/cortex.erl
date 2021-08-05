@@ -63,12 +63,12 @@ get_backup([],Acc)-> Acc.
 
 %During backup, cortex contacts all the neurons in its NN and requests for the neuron's Ids and their Input_IdPs. Once the updated Input_IdPs from all the neurons have been accumulated, the list is sent to exoself for the actual backup and storage.
 calcDistance(Step, HunterLoc)->
+	Actual_Step = ?SIM_ITERATIONS - Step,
 	% Calc The rabbit coordinates
 	%TODO extract from --records..
 	RabbitVec = lists:seq(1,?SIM_ITERATIONS),
-	RabbitLoc = lists:nth(?SIM_ITERATIONS - Step, RabbitVec),
+	RabbitLoc = lists:nth(Actual_Step, RabbitVec),
 	[R_X, R_Y, H_X, H_Y] = [RabbitLoc, RabbitLoc] ++ HunterLoc,
 	
 	Distance = math:pow(R_X-H_X,2) + math:pow(R_Y-H_Y,2),
-	io:format("{RX,RY} = {~p,~p}, {HX,HY} = {~p, ~p}~n", [R_X, R_Y, H_X, H_Y]),
-	io:format("STEP:~p DISTANCE:~p~n", [Step, Distance]), {Distance, [R_X, R_Y, H_X, H_Y]}.
+	io:format("STEP:~p DISTANCE:~p~n", [Actual_Step, Distance]), {Distance, [R_X, R_Y, H_X, H_Y]}.
