@@ -10,11 +10,12 @@
 -author("elad.sofer").
 -include("records.hrl").
 %% API
--export([init/1,write/5,read_all_mutateIter/1]).
+-export([init/1,init/0,write/5,read_all_mutateIter/1,read_by_nnID_mutateIter/2]).
 
+init()->init([]).
 init(Node_List) ->
   mnesia:create_schema([node()|Node_List]), mnesia:start(),
-  mnesia:create_table(db,[{ram_copies, [node()|Node_List]},{attributes, record_info(fields,db)}]).
+  mnesia:create_table(db,[{ram_copies, [node()|Node_List]},{type, bag},{attributes, record_info(fields,db)}]).
 
 write(NN_id, MutId, Gene, Processes_count, Score) ->
   Tmp = #db{nn_id = NN_id,mutId = MutId,gene = Gene,processes_count = Processes_count,score = Score},
@@ -22,7 +23,15 @@ write(NN_id, MutId, Gene, Processes_count, Score) ->
 
 read_all_mutateIter(Iter) ->
   F = fun() ->
-    Elem = #db{mutId = Iter, score = '$1', gene = '$2', _ = '_'},
-    mnesia:select(db, [{Elem, [], ['$$']}])
+    Elem = #db{mutId = Iter,nn_id = '_',gene = '_',processes_count = '_',score = '_'},
+    mnesia:select(db, [{Elem, [], ['$_']}])
       end,
   mnesia:transaction(F).
+
+read_by_nnID_mutateIter(NnId,Iter) ->
+  F = fun() ->
+    Elem = #db{mutId = Iter,nn_id =NnId,gene = '_',processes_count = '_',score = '_'},
+    mnesia:select(db, [{Elem, [], ['$_']}])
+      end,
+  mnesia:transaction(F).
+
