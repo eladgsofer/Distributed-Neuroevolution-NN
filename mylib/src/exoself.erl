@@ -17,7 +17,7 @@ map(FileName)->
 	spawn(exoself,map,[FileName,Genotype]).
 
 % FileName with NN_ID
-map(FileName, Genotype, NNid)->
+map(FileName, Genotype)->
 	% Tracking pids to kill the network
 	IdsNPIds = ets:new(idsNpids,[set,private]),
 	[Cx|CerebralUnits] = Genotype,

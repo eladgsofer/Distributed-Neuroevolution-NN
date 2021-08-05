@@ -106,11 +106,11 @@ construct_Genotype(FileName, SensorName,ActuatorName,HiddenLayerDensities)->
 				Weights = create_NeuralWeights(Input_VL,[]),
 				create_NeuralInput(Input_IdPs,[{Input_Id,Weights}|Acc]); 
 			create_NeuralInput([],Acc)-> 
-				lists:reverse([{bias,random:uniform()-0.5}|Acc]).
+				lists:reverse([{bias,rand:uniform()-0.5}|Acc]).
 			 
 				create_NeuralWeights(0,Acc) -> Acc;
 				create_NeuralWeights(Index,Acc) ->
-					W = random:uniform()-0.5, 
+					W = rand:uniform()-0.5,
 					create_NeuralWeights(Index-1,[W|Acc]). 
 %Each neuron record is composed by the create_Neuron/3 function. The create_Neuron/3 function creates the Input list from the tuples [{Id,Weights}...] using the vector lengths specified in the place holder Input_IdPs. The create_NeuralInput/2 function uses create_NeuralWeights/2 to generate the random weights in the range of -0.5 to 0.5, adding the bias to the end of the list.
 
