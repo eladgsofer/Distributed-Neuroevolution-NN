@@ -41,7 +41,7 @@ update_location(Rabbit_pos,Hunter_pos,Statistics) ->
 init([]) ->
   ets:new(db,[set,public,named_table]),
   ets:new(stats,[set,public,named_table]),
-  ets:insert(stats,[{process, 0},{fitness, 0}, {hunter_location, {20,20}}, {rabbit_location, {10,10}}]),
+  ets:insert(stats,[{process, 0},{neurons, 0},{fitness, 0}, {distance, 10}]),
   %ets:insert(sensor_states,[]),
   %Graphics
   WxServer = wx:new(),
@@ -57,11 +57,11 @@ init([]) ->
   CallBackPaint =	fun(#wx{event = #wxPaint{}}, _wxObj)->
     Paint = wxBufferedPaintDC:new(Panel),
     wxDC:drawBitmap(Paint,BackGround,{0,0}),
-    Text = lists:flatten(io_lib:format("Processes: ~p,  Fitness: ~p,  Hunter: ~p,  Rabbit: ~p",
+    Text = lists:flatten(io_lib:format("Processes: ~p, Neurons: ~p, Fitness: ~p,  Distance: ~p",
       [ets:lookup_element(stats, process	 , 2),
+        ets:lookup_element(stats, neurons , 2),
         ets:lookup_element(stats, fitness , 2),
-        ets:lookup_element(stats, hunter_location	 , 2),
-        ets:lookup_element(stats, rabbit_location	 , 2)])),
+        ets:lookup_element(stats, distance	 , 2)])),
     % Updating the status bar with the game info
     wxFrame:setStatusText(Frame, Text),
     drawETS(Paint),
@@ -91,7 +91,9 @@ handle_call({update_img, Rabbit_pos,Hunter_pos,Statistics}, _From, State = #main
   RabbitBMP = wxBitmap:new("rabbit.bmp"),
   HunterBMP = wxBitmap:new("hunter.bmp"),
   ets:insert(db,{Rabbit_pos,RabbitBMP}),ets:insert(db,{Hunter_pos,HunterBMP}),
-  ets:insert(stats,Statistics++[{hunter_location, Hunter_pos}, {rabbit_location, Rabbit_pos}]),   %%Statistics=[{process, #num},{fitness, $num}, {hunter_location, {x,y}}, {rabbit_location, {x,y}}]
+  {X_hunter,Y_hunter} = Hunter_pos, {X_rabbit,Y_rabbit} = Rabbit_pos,
+  %%Statistics=[{process, #num},{neurons, $num},{fitness, $num}, {distance, #num}]
+  ets:insert(stats,Statistics++[{distance,math:sqrt(math:pow((X_hunter-X_rabbit),2)+math:pow((Y_hunter-Y_rabbit),2))}]),
   {reply, ok, State};
 handle_call(_Request, _From, State = #main_PC_state{}) ->
   {reply, ok, State}.

@@ -153,7 +153,6 @@ removeNeuron(T,N,Cx)-> Layers = [L||{_,{L,_}} <-Cx#cortex.nids], Final_layer = l
       ets:delete_object(Tab,Del),mutate(Tab,N-1,New_Cx)
 end.
 
-
 removeNeuronEdges(T,[],[],_)->T;
 removeNeuronEdges(T,[{Name_from,Id_from}|Inputs],[],{Chosen_name,Chosen_Id})->
   T1 = removeEdge(T,Name_from,Id_from,Chosen_name,Chosen_Id,from),
