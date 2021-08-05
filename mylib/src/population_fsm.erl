@@ -15,7 +15,7 @@
 -export([start_link/3]).
 
 %% gen_statem callbacks
--export([init/1,fitting_state/3, handle_common/3, format_status/2, calc_state/3, terminate/3, callback_mode/0]).
+-export([init/1,fitting_state/3, format_status/2, calc_state/3, terminate/3, callback_mode/0]).
 -record(pop_state, {agentsMapper, genes, ets, simSteps, serverId, mutIter,nn_amount, masterPid, agentsIds}).
 
 -define(SERVER, ?MODULE).
@@ -44,6 +44,7 @@ start_link(NN_Amount, Sim_Steps, MasterPid) ->
 %% gen_statem:start_link/[3,4], this function is called by the new
 %% process to initialize.
 init({NN_Amount, Sim_Steps, ServerId, MasterPid}) ->
+
   % Initialize State
   NNnames = [list_to_atom("nn" ++ integer_to_list(N)) || N<-lists:seq(1,NN_Amount)],
   NNids = [{node(), Name} || Name<-NNnames],
@@ -58,13 +59,15 @@ init({NN_Amount, Sim_Steps, ServerId, MasterPid}) ->
     agentsMapper=AgentsMapper,
     agentsIds = AgentsIds},
 
-  CollectorPid = self(),
+  CollectorPid = ServerId,
 
+  % Start the agents supervisor
   agents_mgmt:start_link(CollectorPid, NNids, AgentsIds),
-  % Send the master the SeedGenes
-  MasterPid ! {seedGenes, AgentsIds},
-  %TODO The master sends a cast with the SeedGenes straight to CALC_STATE
+
+  % Send the master ACK that I'm ready
+  MasterPid ! {ok, AgentsIds},
   % call agents mgmt
+  io:format("Hi I am FSM ~p~n", [ServerId]),
   {ok, calc_state, StateData}.
 
 
@@ -72,16 +75,6 @@ init({NN_Amount, Sim_Steps, ServerId, MasterPid}) ->
 %% @doc This function is called by a gen_statem when it needs to find out
 %% the callback mode of the callback module.
 callback_mode() -> state_functions.
-
-handle_common(cast, {sync, AgentId}, #pop_state{agentsMapper = AgentsMapper, agentsIds = AgentsIds} = Data) ->
-  UpdatedMapper = AgentsMapper#{AgentId=>true},
-  Pred = fun(_,V) -> V =:= false end,
-  SyncMapper = maps:filter(Pred,UpdatedMapper),
-  case maps:size(SyncMapper) of
-    0 -> NextMutationMapper = maps:from_list([{A, false} ||A<-AgentsIds]),
-      {next_state,calc_state, Data#pop_state{agentsMapper=NextMutationMapper},[]};
-    _-> {keep_state, Data#pop_state{agentsMapper=UpdatedMapper},[]}
-  end.
 
 %% @private
 %% @doc Called (1) whenever sys:get_status/1,2 is called by gen_statem or
@@ -95,24 +88,34 @@ format_status(_Opt, [_PDict, _StateName, _State]) -> Status = some_term, Status.
 %% functions is called when gen_statem receives and event from
 %% call/2, cast/2, or as a normal process message.
 calc_state(cast, {runNetwork, Genes, MutIter}, #pop_state{agentsIds = AgentsIds} =  StateData) ->
+  %TODO extract from DB the genes instead.
   AgentsGenesZip = lists:zip(Genes, AgentsIds),
-  % execute all the agents
+
+  % execute all the agents async
   lists:foreach(fun(ExecData) -> {Gene, Agent} = ExecData, gen_server:cast(Agent, {executeIteration, MutIter, Gene}) end ,AgentsGenesZip),
   {next_state, fitting_state, StateData#pop_state{mutIter=MutIter}};
 
-calc_state(EventType, EventContent, Data) -> handle_common(EventType, EventContent, Data).
+% If a sync message arrived before entering the next_state
+calc_state(cast, {sync, AgentId}, Data) -> fitting_state(cast, {sync, AgentId}, Data).
 
-fitting_state(cast, {sync, AgentId}, #pop_state{agentsMapper = AgentsMapper, agentsIds = AgentsIds} = Data) ->
+fitting_state(cast, {sync, AgentId}, #pop_state{mutIter = MutIter, masterPid = MasterPid, agentsMapper = AgentsMapper, agentsIds = AgentsIds} = Data) ->
+  % Update the agents receive checklist
   UpdatedMapper = AgentsMapper#{AgentId=>true},
+  % Find if everyone sent their sync
   Pred = fun(_,V) -> V =:= false end,
   SyncMapper = maps:filter(Pred,UpdatedMapper),
-  case maps:size(SyncMapper) of
-    0 -> NextMutationMapper = maps:from_list([{A, false} ||A<-AgentsIds]), %TODO send to master I'M DONE!
-      {next_state,calc_state, Data#pop_state{agentsMapper=NextMutationMapper},[]};
-    _-> {keep_state, Data#pop_state{agentsMapper=UpdatedMapper},[]}
-  end;
 
-fitting_state(EventType, EventContent, Data) -> handle_common(EventType, EventContent, Data).
+  case maps:size(SyncMapper) of
+    0 ->
+      % prepare an empty mapper
+      NextMutationMapper = maps:from_list([{A, false} ||A<-AgentsIds]),
+      % sync call to verify server got it, before moving to the next state
+      gen_server:cast(MasterPid, {done, MutIter}),
+      {next_state,calc_state, Data#pop_state{agentsMapper=NextMutationMapper},[]};
+
+    _-> {keep_state, Data#pop_state{agentsMapper=UpdatedMapper},[]}
+  end.
+
 
 
 %% @private

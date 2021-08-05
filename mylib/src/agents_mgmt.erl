@@ -30,7 +30,7 @@ start_link_shell(CollectorPid, NNids, AgentIds) ->
 
 start_link(CollectorPid, NNids, AgentIds) ->
   ServerId = utills:generateServerId(?MODULE),
-  supervisor:start_link({local, ServerId}, ?MODULE, [CollectorPid,NNids, AgentIds]).
+  supervisor:start_link({local, ServerId}, ?MODULE, [CollectorPid,NNids, AgentIds, ServerId]).
 
 %%%===================================================================
 %%% Supervisor callbacks
@@ -47,7 +47,7 @@ start_link(CollectorPid, NNids, AgentIds) ->
     [ChildSpec :: supervisor:child_spec()]}}
   | ignore | {error, Reason :: term()}).
 
-init([CollectorPid, NNids, AgentIds]) ->
+init([CollectorPid, NNids, AgentIds, ServerId]) ->
   MaxRestarts = 1000,
   MaxSecondsBetweenRestarts = 3600,
   SupFlags = #{strategy => one_for_one, intensity => MaxRestarts, period => MaxSecondsBetweenRestarts},
@@ -64,6 +64,7 @@ init([CollectorPid, NNids, AgentIds]) ->
       shutdown => 2000,
       type => worker,
       modules => ['agent']} || {NNid, AgentId, SeedGene}<-AgentConstructors],
+  io:format("Hi I am Supervisor ~p~n", [ServerId]),
 
   {ok, {SupFlags, Childs}}.
 

@@ -25,7 +25,7 @@ start_link(CollectorPid, NNid, Gene, AgentId) ->
 
 init([CollectorPid, NNid, Gene, AgentId]) ->
 
-  io:format("Hi I am agent:~p, Details: CollectorPid:~p|NNid:~p|Gene~p~n~n", [AgentId, CollectorPid, NNid, Gene]),
+  io:format("Hi I am Agent ~p, Details: CollectorPid:~p|NNid:~p|~n", [AgentId, CollectorPid, NNid]),
   {ok, #agent_state{nnId=NNid, seedGene=Gene, collectorPid=CollectorPid, agentId = AgentId}}.
 
 handle_call({run_simulation, Gene}, _From, State = #agent_state{agentId = AgentId}) ->
