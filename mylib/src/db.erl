@@ -10,7 +10,7 @@
 -author("elad.sofer").
 -include("records.hrl").
 %% API
--export([init/1,init/0,write/5,read_all_mutateIter/1,select_best_genes/1,write_records/1]).
+-export([init/1,init/0,write/5,read_all_mutateIter/1,select_best_genes/1,write_records/1,delete_all_mutateIter/1]).
 
 init()->init([]).
 init(Node_List) ->
@@ -31,6 +31,9 @@ read_all_mutateIter(Iter) ->
     mnesia:select(db, [{Elem, [], ['$_']}])
       end,
   mnesia:transaction(F).
+
+delete_all_mutateIter(Iter)-> {atomic,List} = read_all_mutateIter(Iter),
+  Fun = fun() -> lists:foreach(fun(Elem)-> mnesia:delete_object(Elem) end,List) end, mnesia:transaction(Fun).
 
 select_best_genes([{NnId,Iter}|Tail]) ->select_best_genes([{NnId,Iter}|Tail],[]).
 select_best_genes([{NnId,Iter}|Tail],Acc)->
