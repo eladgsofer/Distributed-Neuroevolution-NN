@@ -8,7 +8,7 @@
 
 -behaviour(gen_server).
 
--export([start_link/4]).
+-export([start_link/3]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
   code_change/3]).
 
@@ -20,13 +20,13 @@
 %%% Spawning and gen_server implementation
 %%%===================================================================
 
-start_link(CollectorPid, NNid, Gene, AgentId) ->
-  gen_server:start_link({local, AgentId}, ?MODULE, [CollectorPid, NNid, Gene, AgentId], []).
+start_link(CollectorPid, NNid, AgentId) ->
+  gen_server:start_link({local, AgentId}, ?MODULE, [CollectorPid, NNid, AgentId], []).
 
-init([CollectorPid, NNid, Gene, AgentId]) ->
+init([CollectorPid, NNid, AgentId]) ->
 
   io:format("Hi I am Agent ~p, Details: CollectorPid:~p|NNid:~p|~n", [AgentId, CollectorPid, NNid]),
-  {ok, #agent_state{nnId=NNid, seedGene=Gene, collectorPid=CollectorPid, agentId = AgentId}}.
+  {ok, #agent_state{nnId=NNid, collectorPid=CollectorPid, agentId = AgentId}}.
 
 handle_call({run_simulation, Gene}, _From, State = #agent_state{agentId = AgentId}) ->
   % the AgentId is: <node>_nnX atom
@@ -34,15 +34,10 @@ handle_call({run_simulation, Gene}, _From, State = #agent_state{agentId = AgentI
   % {SrcPid, _} = _From,
   {reply, {ok, SimulationVec}, State}.
 
-handle_cast({executeIteration, MutId, Gene}, State = #agent_state{nnId=NNid, seedGene=SeedGene, collectorPid=CollectorPid, agentId = AgentId}) ->
+handle_cast({executeIteration, MutId, Gene}, State = #agent_state{nnId=NNid, collectorPid=CollectorPid, agentId = AgentId}) ->
   % NNid is the AgentId as well, each agent has it's own network to handle.
-  ActualGene =
-    if
-      MutId==0 -> SeedGene;
-      true-> Gene
-    end,
 
-  MutatedGene = mutate:mutate(ActualGene),
+  MutatedGene = mutate:mutate(Gene),
   {Score, ProcessesCount, _} = exoself:map(AgentId,Gene),
   io:format("NNid:~p|Score:~p|Processes Count:~p~n",[AgentId, Score, ProcessesCount]),
   db:write(NNid,MutId,MutatedGene,ProcessesCount, Score),

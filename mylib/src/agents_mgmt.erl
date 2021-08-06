@@ -50,20 +50,18 @@ start_link(CollectorPid, NNids, AgentIds) ->
 init([CollectorPid, NNids, AgentIds, ServerId]) ->
   MaxRestarts = 1000,
   MaxSecondsBetweenRestarts = 3600,
+
   SupFlags = #{strategy => one_for_one, intensity => MaxRestarts, period => MaxSecondsBetweenRestarts},
 
-  %TODO TAKE LAYERS FROM MASTER PROCESS
-  ZippedIds = lists:zip(NNids, AgentIds),
-  AgentConstructors = [{NNId, AgentId, constructor:construct_Genotype(AgentId,rng,pts,[3,2])} || {NNId, AgentId} <- ZippedIds],
-
-
+  AgentIds = lists:zip(NNids, AgentIds),
+  io:format("~p!!!!~n", [AgentIds]),
   Childs =
     [ #{id=>NNid,
-      start => {'agent', start_link, [CollectorPid, NNid, SeedGene, AgentId]},
+      start => {'agent', start_link, [CollectorPid, NNid, AgentId]},
       restart => permanent,
       shutdown => 2000,
       type => worker,
-      modules => ['agent']} || {NNid, AgentId, SeedGene}<-AgentConstructors],
+      modules => ['agent']} || {NNid, AgentId}<-AgentIds],
   io:format("Hi I am Supervisor ~p~n", [ServerId]),
 
   {ok, {SupFlags, Childs}}.

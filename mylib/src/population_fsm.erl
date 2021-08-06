@@ -12,7 +12,7 @@
 -behaviour(gen_statem).
 
 %% API
--export([start_link/3]).
+-export([start_link/4]).
 
 %% gen_statem callbacks
 -export([init/1,fitting_state/3, format_status/2, calc_state/3, terminate/3, callback_mode/0]).
@@ -31,9 +31,9 @@
 %% @doc Creates a gen_statem process which calls Module:init/1 to
 %% initialize. To ensure a synchronized start-up procedure, this
 %% function does not return until Module:init/1 has returned.
-start_link(NN_Amount, Sim_Steps, MasterPid) ->
+start_link(NN_Amount, Sim_Steps, MasterPid, EnvParams) ->
   ServerId = utills:generateServerId(?MODULE),
-  gen_statem:start_link({local, ServerId}, ?MODULE, {NN_Amount, Sim_Steps, ServerId, MasterPid}, []).
+  gen_statem:start_link({local, ServerId}, ?MODULE, {NN_Amount, Sim_Steps, ServerId, MasterPid, EnvParams}, []).
 
 %%%===================================================================
 %%% gen_statem callbacks
@@ -43,12 +43,10 @@ start_link(NN_Amount, Sim_Steps, MasterPid) ->
 %% @doc Whenever a gen_statem is started using gen_statem:start/[3,4] or
 %% gen_statem:start_link/[3,4], this function is called by the new
 %% process to initialize.
-init({NN_Amount, Sim_Steps, ServerId, MasterPid}) ->
+init({NN_Amount, Sim_Steps, ServerId, MasterPid, EnvParams}) ->
 
-  % Initialize State
-  NNnames = [list_to_atom("nn" ++ integer_to_list(N)) || N<-lists:seq(1,NN_Amount)],
-  NNids = [{node(), Name} || Name<-NNnames],
-  AgentsIds = [list_to_atom(atom_to_list(Node) ++ "_" ++ atom_to_list(Id)) || {Node, Id}<-NNids],
+  {NNids, AgentsIds} =EnvParams,
+
   AgentsMapper = maps:from_list([{A, false} ||A<-AgentsIds]),
 
   StateData = #pop_state{
@@ -65,7 +63,7 @@ init({NN_Amount, Sim_Steps, ServerId, MasterPid}) ->
   agents_mgmt:start_link(CollectorPid, NNids, AgentsIds),
 
   % Send the master ACK that I'm ready
-  gen_server:cast(MasterPid, {ok, AgentsIds}),
+  gen_server:cast(MasterPid, {ok, NNids}),
   % call agents mgmt
   io:format("Hi I am FSM ~p~n", [ServerId]),
   {ok, calc_state, StateData}.
