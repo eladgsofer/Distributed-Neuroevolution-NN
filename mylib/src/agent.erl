@@ -37,7 +37,9 @@ handle_call({run_simulation, Gene}, _From, State = #agent_state{agentId = AgentI
 handle_cast({executeIteration, MutId, Gene}, State = #agent_state{nnId=NNid, collectorPid=CollectorPid, agentId = AgentId}) ->
   % NNid is the AgentId as well, each agent has it's own network to handle.
 
+
   MutatedGene = mutate:mutate(Gene),
+  %io:format("AgentId:~p|Gene:~p|~n",[AgentId, Gene]),
   {Score, ProcessesCount, _} = exoself:map(AgentId,Gene),
   io:format("NNid:~p|Score:~p|Processes Count:~p~n",[AgentId, Score, ProcessesCount]),
   db:write(NNid,MutId,MutatedGene,ProcessesCount, Score),

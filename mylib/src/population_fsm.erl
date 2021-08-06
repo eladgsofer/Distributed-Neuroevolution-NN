@@ -88,10 +88,19 @@ format_status(_Opt, [_PDict, _StateName, _State]) -> Status = some_term, Status.
 calc_state(cast, {runNetwork, BestGenesIds, MutIter}, #pop_state{agentsIds = AgentsIds} =  StateData) ->
 
   Genes = db:select_best_genes(BestGenesIds),
-  AgentsGenesZip = lists:zip(Genes, AgentsIds),
+  if
+    length(Genes)=:=length(AgentsIds) ->
+      AgentsGenesZip = lists:zip(Genes, AgentsIds),
 
-  % execute all the agents async
-  lists:foreach(fun(ExecData) -> {Gene, Agent} = ExecData, gen_server:cast(Agent, {executeIteration, MutIter, Gene}) end ,AgentsGenesZip),
+      ExecFunc = fun(ExecData) -> {Gene, Agent} = ExecData,
+        gen_server:cast(Agent, {executeIteration, MutIter, Gene}) end,
+
+      % execute all the agents async
+      lists:foreach(ExecFunc, AgentsGenesZip);
+    true -> ok %TODO ADD SUPPORT FOR BACKUP MODE
+  end,
+
+  io:format("AGENTS EXECUTED:~n"),
   {next_state, fitting_state, StateData#pop_state{mutIter=MutIter}};
 
 % If a sync message arrived before entering the next_state
@@ -103,16 +112,17 @@ fitting_state(cast, {sync, AgentId}, #pop_state{mutIter = MutIter, masterPid = M
   % Find if everyone sent their sync
   Pred = fun(_,V) -> V =:= false end,
   SyncMapper = maps:filter(Pred,UpdatedMapper),
-
+  io:format("got sync from ~p current table is~p~n", [AgentId, SyncMapper]),
   case maps:size(SyncMapper) of
     0 ->
       % prepare an empty mapper
       NextMutationMapper = maps:from_list([{A, false} ||A<-AgentsIds]),
       % sync call to verify server got it, before moving to the next state
-      gen_server:cast(MasterPid, {done, MutIter}),
+      gen_server:cast(MasterPid, {node(), done, MutIter}),
       {next_state,calc_state, Data#pop_state{agentsMapper=NextMutationMapper},[]};
 
-    _-> {keep_state, Data#pop_state{agentsMapper=UpdatedMapper},[]}
+    _->
+      {keep_state, Data#pop_state{agentsMapper=UpdatedMapper},[]}
   end.
 
 

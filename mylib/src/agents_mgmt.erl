@@ -52,16 +52,17 @@ init([CollectorPid, NNids, AgentIds, ServerId]) ->
   MaxSecondsBetweenRestarts = 3600,
 
   SupFlags = #{strategy => one_for_one, intensity => MaxRestarts, period => MaxSecondsBetweenRestarts},
+  AgentIdsZipped = lists:zip(NNids, AgentIds),
 
-  AgentIds = lists:zip(NNids, AgentIds),
-  io:format("~p!!!!~n", [AgentIds]),
+  %io:format("~p!!!!~n", [AgentIdsZipped]),
   Childs =
-    [ #{id=>NNid,
+    [ #{id=>AgentId,
       start => {'agent', start_link, [CollectorPid, NNid, AgentId]},
       restart => permanent,
       shutdown => 2000,
       type => worker,
-      modules => ['agent']} || {NNid, AgentId}<-AgentIds],
+      modules => ['agent']} || {NNid, AgentId}<-AgentIdsZipped],
+
   io:format("Hi I am Supervisor ~p~n", [ServerId]),
 
   {ok, {SupFlags, Childs}}.
