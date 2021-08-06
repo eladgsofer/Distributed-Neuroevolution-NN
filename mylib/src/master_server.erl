@@ -29,8 +29,8 @@
 -define(NODE2, none).
 -define(NODE3, none).
 
--record(state, {nn_amount,mutate_iteration,max_mutate_iteration,rabbit_pos, track}).
--record(track,{master,node1,node2,node3}).
+-record(state, {nn_amount,mutate_iteration,max_mutate_iteration,rabbit_pos, track,prev_nodes}).
+-record(track,{?MASTER_NODE,?NODE1,?NODE2,?NODE3}).
 
 %%%===================================================================
 %%% API
@@ -51,16 +51,17 @@ start_link(Layers,Max_Mutation_iterations,Simulation_steps,NN_amount,Rabbit_pos,
 init([Layers,Max_Mutation_iterations,Simulation_steps,NN_amount,Rabbit_pos,{Node1,Node2,Node3}]) ->
   db:init(),        %for simulation
   %db:init([Node1,Node2,Node3]),
-  Track = #track{master = maps:new(),node1 = maps:new(),node2 = maps:new(),node3 = maps:new()},
+  Track = #track{?MASTER_NODE = maps:new(), ?NODE1 = maps:new(),?NODE2 = maps:new(),?NODE3 = maps:new()},
+
 
   State = #state{nn_amount = NN_amount,mutate_iteration=0,max_mutate_iteration = Max_Mutation_iterations,
-    rabbit_pos = Rabbit_pos, track=Track},
+    rabbit_pos = Rabbit_pos, track=Track,prev_nodes = monitorNodes()},
 
   graphic:start(),
 
   {NNids, AgentsIds} = generate_seeds(NN_amount,Layers),
-  population_fsm:start_link(NN_amount,Simulation_steps,self(), {NNids, AgentsIds}),
-  %timer:send_interval(80, self(), check_genotyps),
+  population_fsm:start_link(NN_amount,Simulation_steps,self(),{NNids, AgentsIds}),
+  timer:send_interval(80, self(), check_genotyps),
   {ok, State}.
 
 handle_call(_Request, _From, State) ->
@@ -74,44 +75,38 @@ handle_cast({ok,NNids},State)->
 
 handle_cast({?MASTER_NODE, done, Mutation_iterations}, State) ->
   Old = State#state.track,
-  TrackNode = Old#track.master,
-  NewTrack = Old#track{master = maps:put(Mutation_iterations, finish, TrackNode)},
+  TrackNode = Old#track.?MASTER_NODE,
+  NewTrack = Old#track{?MASTER_NODE = maps:put(Mutation_iterations, finish, TrackNode)},
   {noreply, State#state{track = NewTrack}};
 
 handle_cast({?NODE1, done, Mutation_iterations},State) ->
   Old = State#state.track,
-  TrackNode = Old#track.node1,
-  NewTrack = Old#track{node1 = maps:put(Mutation_iterations, finish, TrackNode)},
+  TrackNode = Old#track.?NODE1,
+  NewTrack = Old#track{?NODE1 = maps:put(Mutation_iterations, finish, TrackNode)},
   {noreply, State#state{track = NewTrack}};
 
 handle_cast({?NODE2,done, Mutation_iterations},State) ->
   Old = State#state.track,
-  TrackNode = Old#track.node2,
-  NewTrack = Old#track{node2 = maps:put(Mutation_iterations, finish, TrackNode)},
+  TrackNode = Old#track.?NODE2,
+  NewTrack = Old#track{?NODE2 = maps:put(Mutation_iterations, finish, TrackNode)},
   {noreply, State#state{track = NewTrack}};
 
 handle_cast({?NODE3,done, Mutation_iterations}, State) ->
   Old = State#state.track,
-  TrackNode = Old#track.node3,
-  NewTrack = Old#track{node3 = maps:put(Mutation_iterations, finish, TrackNode)},
+  TrackNode = Old#track.?NODE3,
+  NewTrack = Old#track{?NODE3 = maps:put(Mutation_iterations, finish, TrackNode)},
   {noreply, State#state{track = NewTrack}}.
 
 
 handle_info(_Info, State) ->
+  io:format("handle_info:~n"),
   Mutate_iteration = State#state.mutate_iteration,
-  %Node_list = [{#track.master,#state.master},{#track.node1,#state.node1},{#track.node2,#state.node2},{#track.node3,#state.node3}],
-  %Active_Nodes = [{Node_Map,Node}||{Node_Map,Node}<-Node_list,net_adm:ping(Node)==pong],
-  %Readys = [ready||{Node_Map,_}<-Active_Nodes,(maps:find(Mutate_iteration,Node_Map)==error)==false],
-  Active_Nodes= ?MASTER_NODE,
-  case Mutate_iteration==#state.max_mutate_iteration of
-    false->#state{mutate_iteration= Mutate_iteration+1},calc(Mutate_iteration,Active_Nodes),{noreply, State};
-    true-> {Best_score,Best_Genotype,Processes_cnt} = choose_best(Mutate_iteration),
-      Cx = hd(Best_Genotype),
-      Nurons_num = length(Cx#cortex.nids),
-      Statistics = [{process, Processes_cnt},{neurons, Nurons_num},{fitness, Best_score}],
-      Hunter_path = gen_server:call(agent1,{run_simulation,Best_Genotype}),
-      display(Hunter_path,#state.rabbit_pos,Statistics),{noreply, State}
+  Active_Nodes= monitorNodes(),
+  case Active_Nodes==State#state.prev_nodes of
+    true-> handleIteration(State,Active_Nodes,Mutate_iteration);
+    false -> State#state{prev_nodes = Active_Nodes}, restartIteration()
   end,
+
   {noreply, State}.
 
 terminate(_Reason, _State) -> ok.
@@ -122,10 +117,23 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 %%% Internal functions
 %%%===================================================================
 
+handleIteration(State,Active_Nodes,Mutate_iteration) ->
+  %Readys = [ready||Node <-Active_Nodes,(maps:find(Mutate_iteration,State#state.track#track.Node)==error)==false],
+  case Mutate_iteration==State#state.max_mutate_iteration of
+  false->State#state{mutate_iteration= Mutate_iteration+1},calc(Mutate_iteration,Active_Nodes),{noreply, State};
+  true-> {Best_score,Best_Genotype,Processes_cnt} = choose_best(Mutate_iteration),
+  Cx = hd(Best_Genotype),
+  Nurons_num = length(Cx#cortex.nids),
+  Statistics = [{process, Processes_cnt},{neurons, Nurons_num},{fitness, Best_score}],
+  Agent = utills:generateServerId(?MASTER_NODE, nn1),
+  Hunter_path = gen_server:call(Agent,{run_simulation,Best_Genotype}),
+  display(Hunter_path,State#state.rabbit_pos,Statistics),{noreply, State}
+  end.
+
 calc(Mutation_iterations,Active_Nodes)-> %%mnesia:force_load_table(db),
   {atomic,List} = db:read_all_mutateIter(Mutation_iterations),
   Filtered = [{Score,{NNid,MutatIter}}||{db,NNid,MutatIter,_,_,Score} <-List],
-  Sortd_by_score = lists:keysort(2,Filtered),Bests_genotyps = lists:sublist(Sortd_by_score,#state.nn_amount),brodcast_genotyps(Bests_genotyps,Active_Nodes).
+  Sortd_by_score = lists:keysort(1,Filtered),Bests_genotyps = lists:sublist(Sortd_by_score,#state.nn_amount),brodcast_genotyps(Bests_genotyps,Active_Nodes).
 
 brodcast_genotyps(Bests_genotyps,Active_Nodes)-> Choden_Genes = [{NNid,MutatIter}||{_,{NNid,MutatIter}} <-Bests_genotyps],
   Node_Names = [utills:generateServerId(Node,?MODULE)||Node<-Active_Nodes],
@@ -134,7 +142,7 @@ brodcast_genotyps(Bests_genotyps,Active_Nodes)-> Choden_Genes = [{NNid,MutatIter
 choose_best(Mutation_iterations)->%%mnesia:force_load_table(db),
   {atomic,List} = db:read_all_mutateIter(Mutation_iterations),
   Filtered = [{Score,{Genotype,Processes_cnt}}||{db,_,_,Genotype,Processes_cnt,Score} <-List],
-  Sortd_by_score = lists:keysort(2,Filtered), {Score,{Genotype,Processes_cnt}}=hd(Sortd_by_score),
+  Sortd_by_score = lists:keysort(1,Filtered), {Score,{Genotype,Processes_cnt}}=hd(Sortd_by_score),
   {Score,Genotype,Processes_cnt}.
 
 display([],[],_)-> ok;
@@ -155,3 +163,8 @@ generate_seeds(NN_amount,Layers)-> % Initialize State
   db:write_records(Seeds),Env_Params.
 
 
+monitorNodes()->
+  NodeList = [?MASTER_NODE, ?NODE1, ?NODE2, ?NODE3],
+  [Node || Node<- NodeList, net_adm:ping(Node)==pong].
+
+restartIteration()->elad.

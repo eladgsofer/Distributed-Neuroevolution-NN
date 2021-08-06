@@ -6,7 +6,7 @@
 %%%-------------------------------------------------------------------
 -module(test).
 -include("records.hrl").
-
+-record(test,{name1,name2}).
 -compile(export_all).
 %Layers,Max_Mutation_iterations,Simulation_steps,NN_amount,Rabbit_pos,Nodes
 
@@ -56,3 +56,5 @@ test_supervisor(NN_Amount)->
   agents_mgmt:start_link_shell(self(), NNids, AgentsIds).
 
 generateServerId()-> list_to_atom(atom_to_list(node()) ++ "_" ++ atom_to_list(?MODULE)).
+
+tom()-> Test = #test{name1 = {key1,val1},name2 = {key2,val2}},L = tl(tuple_to_list(Test)),lists:keyfind(key1, 1, L).
