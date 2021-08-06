@@ -39,11 +39,9 @@ update_location(Rabbit_pos,Hunter_pos,Statistics) ->
 %  {ok, State :: #main_PC_state{}} | {ok, State :: #main_PC_state{}, timeout() | hibernate} |
 %  {stop, Reason :: term()} | ignore).
 init([]) ->
-  ets:new(db,[set,public,named_table]),
+  ets:new(gui_db,[set,public,named_table]),
   ets:new(stats,[set,public,named_table]),
   ets:insert(stats,[{process, 0},{neurons, 0},{fitness, 0}, {distance, 10}]),
-  %ets:insert(sensor_states,[]),
-  %Graphics
   WxServer = wx:new(),
   Frame = wxFrame:new(WxServer, ?wxID_ANY, "Neuroevolution Neural Network", [{size,{1280, 720}}]),
   Panel  = wxPanel:new(Frame),
@@ -52,8 +50,8 @@ init([]) ->
   BackGround = wxBitmap:new("background.bmp"),
   Rabbit = wxBitmap:new("rabbit.bmp"),
   Hunter = wxBitmap:new("hunter.bmp"),
-  ets:insert(db,{{10,10},Rabbit}),
-  ets:insert(db,{{20,20},Hunter}),
+  ets:insert(gui_db,{{10,10},Rabbit}),
+  ets:insert(gui_db,{{30,30},Hunter}),
   CallBackPaint =	fun(#wx{event = #wxPaint{}}, _wxObj)->
     Paint = wxBufferedPaintDC:new(Panel),
     wxDC:drawBitmap(Paint,BackGround,{0,0}),
@@ -87,10 +85,10 @@ init([]) ->
   {stop, Reason :: term(), Reply :: term(), NewState :: #main_PC_state{}} |
   {stop, Reason :: term(), NewState :: #main_PC_state{}}).
 handle_call({update_img, Rabbit_pos,Hunter_pos,Statistics}, _From, State = #main_PC_state{ panel = Panel}) ->
-  ets:delete_all_objects(ets:whereis(db)),
+  ets:delete_all_objects(ets:whereis(gui_db)),
   RabbitBMP = wxBitmap:new("rabbit.bmp"),
   HunterBMP = wxBitmap:new("hunter.bmp"),
-  ets:insert(db,{Rabbit_pos,RabbitBMP}),ets:insert(db,{Hunter_pos,HunterBMP}),
+  ets:insert(gui_db,{Rabbit_pos,RabbitBMP}),ets:insert(gui_db,{Hunter_pos,HunterBMP}),
   {X_hunter,Y_hunter} = Hunter_pos, {X_rabbit,Y_rabbit} = Rabbit_pos,
   %%Statistics=[{process, #num},{neurons, $num},{fitness, $num}, {distance, #num}]
   ets:insert(stats,Statistics++[{distance,math:sqrt(math:pow((X_hunter-X_rabbit),2)+math:pow((Y_hunter-Y_rabbit),2))}]),
@@ -110,14 +108,14 @@ handle_cast({update_img, {Sensor_Pos,Sensor_State}}, State = #main_PC_state{ pan
     sending -> "sensor_sending_data.bmp";
     asleep -> "sensor_sleep.bmp"
   end,
-  case ets:member(db,Sensor_Pos) of
+  case ets:member(gui_db,Sensor_Pos) of
     true ->
-      [{Sensor_Pos,SensorBMP_prev}] = ets:lookup(db,Sensor_Pos),
+      [{Sensor_Pos,SensorBMP_prev}] = ets:lookup(gui_db,Sensor_Pos),
       wxBitmap:destroy(SensorBMP_prev);
     false -> ok
   end,
   SensorBMP = wxBitmap:new(State_img),
-  ets:insert(db,{Sensor_Pos,SensorBMP}),
+  ets:insert(gui_db,{Sensor_Pos,SensorBMP}),
   {noreply, State};
 handle_cast(_Request, State = #main_PC_state{}) ->
   {noreply, State}.
@@ -165,20 +163,20 @@ code_change(_OldVsn, State = #main_PC_state{}, _Extra) ->
 %%%===================================================================
 % ===== iterates all ets elements and update image =====
 drawETS(Painter) ->
-  First = ets:first(db),
+  First = ets:first(gui_db),
   case First of
     '$end_of_table'-> ok;
     _ ->
-      [{Pos,BMP}] = ets:lookup(db,First),
+      [{Pos,BMP}] = ets:lookup(gui_db,First),
       wxDC:drawBitmap(Painter, BMP, Pos),
       drawETS(Painter,First)
   end.
 drawETS(Painter,Curr) ->
-  Next = ets:next(db,Curr),
+  Next = ets:next(gui_db,Curr),
   case Next of
     '$end_of_table' -> ok;
     _ ->
-      [{Pos,BMP}] = ets:lookup(db,Next),
+      [{Pos,BMP}] = ets:lookup(gui_db,Next),
       wxDC:drawBitmap(Painter, BMP, Pos),
       drawETS(Painter,Next)
   end.

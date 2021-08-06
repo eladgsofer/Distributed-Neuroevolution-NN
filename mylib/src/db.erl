@@ -10,12 +10,16 @@
 -author("elad.sofer").
 -include("records.hrl").
 %% API
--export([init/1,init/0,write/5,read_all_mutateIter/1,select_best_genes/1]).
+-export([init/1,init/0,write/5,read_all_mutateIter/1,select_best_genes/1,write_records/1]).
 
 init()->init([]).
 init(Node_List) ->
   mnesia:create_schema([node()|Node_List]), mnesia:start(),
   mnesia:create_table(db,[{ram_copies, [node()|Node_List]},{type, bag},{attributes, record_info(fields,db)}]).
+
+write_records([])->ok;
+write_records([Record|Records])->Fun = fun() ->mnesia:write(Record) end, mnesia:transaction(Fun),write_records(Records).
+
 
 write(NN_id, MutId, Gene, Processes_count, Score) ->
   Tmp = #db{nn_id = NN_id,mutId = MutId,gene = Gene,processes_count = Processes_count,score = Score},
