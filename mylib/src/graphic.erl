@@ -50,8 +50,8 @@ init([]) ->
   BackGround = wxBitmap:new("background.bmp"),
   Rabbit = wxBitmap:new("rabbit.bmp"),
   Hunter = wxBitmap:new("hunter.bmp"),
-  ets:insert(gui_db,{{10,10},Rabbit}),
-  ets:insert(gui_db,{{30,30},Hunter}),
+  %ets:insert(gui_db,{{10,10},Rabbit}),
+  %ets:insert(gui_db,{{30,30},Hunter}),
   CallBackPaint =	fun(#wx{event = #wxPaint{}}, _wxObj)->
     Paint = wxBufferedPaintDC:new(Panel),
     wxDC:drawBitmap(Paint,BackGround,{0,0}),

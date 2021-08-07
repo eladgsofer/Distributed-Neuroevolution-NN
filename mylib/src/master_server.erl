@@ -30,7 +30,7 @@
 -define(NODE3, none3).
 -define(TIMER_INTERVAL, 1000).
 
--record(state, {nn_amount,mutate_iteration,max_mutate_iteration,rabbit_pos, track,prev_nodes, timer_ref}).
+-record(state, {nn_amount,mutate_iteration,max_mutate_iteration,rabbit_pos, track,prev_nodes, timer_ref,prev_best_gene}).
 -record(track,{?MASTER_NODE,?NODE1,?NODE2,?NODE3}).
 
 %%%===================================================================
@@ -44,7 +44,7 @@
 %% @end
 %%-----------------
 %% ---------------------------------------------------
-start_link(Layers,Max_Mutation_iterations,Simulation_steps,NN_amount,IsMaster) -> %Nods={node1,node2,node3}
+start_link(Layers,Max_Mutation_iterations,Simulation_steps,NN_amount,IsMaster) ->
   ServerId =
     case IsMaster of
       true  -> king;
@@ -62,7 +62,7 @@ init([Layers,Max_Mutation_iterations,Simulation_steps,NN_amount, IsMaster]) ->
   Track = #track{?MASTER_NODE = {?MASTER_NODE,maps:new()}, ?NODE1 = {?NODE1,maps:new()},?NODE2 = {?NODE2,maps:new()},?NODE3 = {?NODE3,maps:new()}},
 
   State = #state{nn_amount = NN_amount, mutate_iteration=1, max_mutate_iteration = Max_Mutation_iterations,
-    rabbit_pos = Rabbit_pos, track=Track, prev_nodes = monitorNodes()},
+    rabbit_pos = Rabbit_pos, track=Track, prev_nodes = monitorNodes(), prev_best_gene = []},
 
   case IsMaster of
     true->
@@ -157,11 +157,12 @@ handleIteration(State,Active_Nodes,Mutate_iteration) ->
       case Mutate_iteration==State#state.max_mutate_iteration of
         false->
           Updated_State = State#state{mutate_iteration= Mutate_iteration+1},
-          triggerCalcState(Mutate_iteration,Active_Nodes,Updated_State),Updated_State;
+          U_S = triggerCalcState(Mutate_iteration,Active_Nodes,Updated_State),U_S;
         true->
           io:format("Final Iteration:~n"),
-          {Best_score,Best_Genotype,Processes_cnt} = chooseBest(Mutate_iteration),
+          {Best_score,Best_Genotype,Processes_cnt} = chooseBest(Mutate_iteration,State),
           io:format("Best_score:~p~n", [Best_score]),
+          io:format("Best_Genotype:~p~n", [Best_Genotype]),
           io:format("Processes_cnt:~p~n", [Processes_cnt]),
           Cx = hd(Best_Genotype),
           Nurons_num = length(Cx#cortex.nids),
@@ -187,10 +188,14 @@ handleIteration(State,Active_Nodes,Mutate_iteration) ->
 triggerCalcState(Mutation_iterations,Active_Nodes,Updated_State)-> %%mnesia:force_load_table(db),
   {atomic,List} = db:read_all_mutateIter(Mutation_iterations),
   Filtered = [{Score,{NNid,MutatIter}}||{db,NNid,MutatIter,_,_,Score} <-List],
-  Sortd_by_score = lists:keysort(1,Filtered),
+  Sortd_by_score = lists:keysort(1,Filtered ++Updated_State#state.prev_best_gene),
+  io:format("Sortd_by_score:~p~n", [Sortd_by_score]),
   Bests_genotyps = lists:sublist(Sortd_by_score,Updated_State#state.nn_amount),
-  io:format("Bests_genotyps:~p~n", [Bests_genotyps]),
-  broadcastGenes(Bests_genotyps,Active_Nodes,Updated_State).
+  io:format("Best_Genotype:~p~n", [hd(Bests_genotyps)]),
+  U_S = Updated_State#state{prev_best_gene = Bests_genotyps},
+  %io:format("Updated prev_best_gene:~p~n", [U_S#state.prev_best_gene]),
+  %io:format("Bests_genotyps:~p~n", [Bests_genotyps]),
+  broadcastGenes(Bests_genotyps,Active_Nodes,U_S),U_S.
 
 broadcastGenes(Bests_genotyps,Active_Nodes,Updated_State)->
   ChosenGenes = [{NNid,MutatIter}||{_,{NNid,MutatIter}} <-Bests_genotyps],
@@ -198,15 +203,17 @@ broadcastGenes(Bests_genotyps,Active_Nodes,Updated_State)->
   %TODO CAST TO NODES
   % PopAddresses = [{Node, utills:generateServerId(Node, population_fsm)}||Node<-Active_Nodes],
   PopAddresses = [utills:generateServerId(Node, population_fsm)||Node<-Active_Nodes],
-  io:format("PopAddresses:~p~n", [PopAddresses]),
   TriggerCalc = fun(PopAddr)-> gen_server:cast(PopAddr, {runNetwork, ChosenGenes, Updated_State#state.mutate_iteration}) end,
   lists:foreach(TriggerCalc, PopAddresses).
 
-chooseBest(Mutation_iterations)->%%mnesia:force_load_table(db),
+chooseBest(Mutation_iterations,State)->%%mnesia:force_load_table(db),
   {atomic,List} = db:read_all_mutateIter(Mutation_iterations),
-  Filtered = [{Score,{Genotype,Processes_cnt}}||{db,_,_,Genotype,Processes_cnt,Score} <-List],
-  Sortd_by_score = lists:keysort(1,Filtered), {Score,{Genotype,Processes_cnt}}=hd(Sortd_by_score),
-  {Score,Genotype,Processes_cnt}.
+  Filtered = [{Score,{NNid,MutatIter}}||{db,NNid,MutatIter,_,_,Score} <-List],
+  Sortd_by_score = lists:keysort(1,Filtered++State#state.prev_best_gene),
+  {_,{NNid,MutatIter}}=hd(Sortd_by_score),
+  {atomic,Best_Net} = db:get({NNid,MutatIter}),
+  {db,_,_,Genotype,Processes_cnt,Score_db}=hd(Best_Net),
+  {Score_db,Genotype,Processes_cnt}.
 
 display([],_)-> turnOffTimer;
 display([[R_X,R_Y,H_X,H_Y]|Path],Statistics)->
@@ -217,10 +224,7 @@ display([[R_X,R_Y,H_X,H_Y]|Path],Statistics)->
 
 generateSeeds(NN_amount,Layers)-> % Initialize State
   % Each node create it's own seed
-  NNnames = [list_to_atom("nn" ++ integer_to_list(N)) || N<-lists:seq(1,NN_amount)], % nn1, nn2...
-  NNids = [{node(), Name} || Name<-NNnames], % [{node(), nn1}]...
-  AgentsIds = [list_to_atom(atom_to_list(Node) ++ "_" ++ atom_to_list(Id)) || {Node, Id}<-NNids], % [node1_nn1, node2_nn2]...
-  Env_Params = {NNids, AgentsIds},
+  {NNids, AgentsIds} = Env_Params = utills:generateNNIds(1,NN_amount),
   AgentIdsZipped = lists:zip(NNids, AgentsIds),
   Seeds=[#db{nn_id = NNid,mutId =0,
     gene=constructor:construct_Genotype(AgentId,rng,pts,Layers),

@@ -114,7 +114,7 @@ fitting_state(cast, {sync, AgentId}, #pop_state{mutIter = MutIter, masterPid = M
   Pred = fun(_,V) -> V =:= false end,
   SyncMapper = maps:filter(Pred,UpdatedMapper),
 
-  io:format("fitting_staet: got sync from ~p current table is~p~n", [AgentId, SyncMapper]),
+  %io:format("fitting_staet: got sync from ~p current table is~p~n", [AgentId, SyncMapper]),
   case maps:size(SyncMapper) of
     0 ->
       % prepare an empty mapper

@@ -15,7 +15,7 @@
 -export([start_link/3]).
 
 %% Supervisor callbacks
--export([init/1, start_link_shell/3]).
+-export([init/1, start_link_shell/3, generateChildrensSpecs/3]).
 
 -define(SERVER, ?MODULE).
 -include("records.hrl").
@@ -52,24 +52,23 @@ init([CollectorPid, NNids, AgentIds, ServerId]) ->
   MaxSecondsBetweenRestarts = 3600,
 
   SupFlags = #{strategy => one_for_one, intensity => MaxRestarts, period => MaxSecondsBetweenRestarts},
-  AgentIdsZipped = lists:zip(NNids, AgentIds),
 
-  %io:format("~p!!!!~n", [AgentIdsZipped]),
-  Childs =
-    [ #{id=>AgentId,
-      start => {'agent', start_link, [CollectorPid, NNid, AgentId]},
-      restart => permanent,
-      shutdown => 2000,
-      type => worker,
-      modules => ['agent']} || {NNid, AgentId}<-AgentIdsZipped],
+  ChildrensSpecs =generateChildrensSpecs(NNids, AgentIds, CollectorPid),
 
   io:format("Hi I am Supervisor ~p~n", [ServerId]),
 
-  {ok, {SupFlags, Childs}}.
+  {ok, {SupFlags, ChildrensSpecs}}.
 
 
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
 
-
+generateChildrensSpecs(NNids, AgentIds, CollectorPid) ->
+  AgentIdsZipped = lists:zip(NNids, AgentIds),
+  [#{id=>AgentId,
+    start => {'agent', start_link, [CollectorPid, NNid, AgentId]},
+    restart => permanent,
+    shutdown => 2000,
+    type => worker,
+    modules => ['agent']} || {NNid, AgentId}<-AgentIdsZipped].

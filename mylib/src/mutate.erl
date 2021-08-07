@@ -124,12 +124,24 @@ removeEdge(Tab,Name_from,Id_from,neuron,Id_to,to)->
   %Old = To_table#actuator.fanin_ids,New = lists:delete({Name_from,Id_from},Old),U_A = To_table#actuator{fanin_ids=New},
   %ets:delete_object(Tab,To_table), ets:insert(Tab,U_A), Tab.
 
+
+
 changeWeight(T,N,Cx)-> Nids = Cx#cortex.nids, I=rand:uniform(length(Nids)), Id_chosen = lists:nth(I, Nids),
   Neuron = hd(ets:select(T, [{#neuron{id=Id_chosen, cx_id='_', af='_', input_idps = '_',output_ids='_'}, [], ['$_']}])),
-  Input_idps = Neuron#neuron.input_idps, I1=rand:uniform(length(Input_idps)-1), {Id,Weights} = lists:nth(I1, Input_idps),
-  I2=rand:uniform(length(Weights)),  N_W = lists:sublist(Weights,I2-1)++[rand:uniform()-0.5]++lists:nthtail(I2,Weights),
-  N_Input_idps = lists:sublist(Input_idps,I1-1)++[{Id,N_W}]++lists:nthtail(I1,Input_idps),
-  U_N = Neuron#neuron{input_idps = N_Input_idps},ets:delete_object(T,Neuron), ets:insert(T,U_N),mutate(T,N-1,Cx).
+  Input_idps = Neuron#neuron.input_idps,
+  case length(Input_idps)==1 of
+    true->  mutate(T,N,Cx);
+    false->I1=rand:uniform(length(Input_idps)-1),
+      {Id,Weights} = lists:nth(I1, Input_idps),
+      I2=rand:uniform(length(Weights)),
+      N_W = lists:sublist(Weights,I2-1)++[rand:uniform()-0.5]++lists:nthtail(I2,Weights),
+      N_Input_idps = lists:sublist(Input_idps,I1-1)++[{Id,N_W}]++lists:nthtail(I1,Input_idps),
+      U_N = Neuron#neuron{input_idps = N_Input_idps},
+      ets:delete_object(T,Neuron),
+      ets:insert(T,U_N),
+      mutate(T,N-1,Cx)
+end.
+
 
 addNeuron(T,N,Cx)-> Old = Cx#cortex.nids, Layer = rand:uniform(lists:max([L||{_,{L,_}} <- Old])-1),
   To_list = [{Name,{L,Id}}||{Name,{L,Id}} <-Old,L > Layer], {Name_to,Id_to} = lists:nth(rand:uniform(length(To_list)),To_list),
