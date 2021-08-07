@@ -73,4 +73,5 @@ calcDistance(Step, HunterLoc)->
 	[R_X, R_Y, H_X, H_Y] = [RabbitLoc, RabbitLoc] ++ HunterLoc,
 	
 	Distance = math:pow(R_X-H_X,2) + math:pow(R_Y-H_Y,2),
-	io:format("STEP:~p DISTANCE:~p~n", [Actual_Step, Distance]), {Distance, [R_X, R_Y, H_X, H_Y]}.
+	%io:format("STEP:~p DISTANCE:~p~n", [Actual_Step, Distance]),
+	{Distance, [R_X, R_Y, H_X, H_Y]}.

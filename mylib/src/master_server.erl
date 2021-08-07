@@ -13,7 +13,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/6,generate_seeds/2]).
+-export([start_link/5, generateSeeds/2]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -21,15 +21,16 @@
   handle_cast/2,
   handle_info/2,
   terminate/2,
-  code_change/3]).
+  code_change/3,display/2]).
 
 -define(SERVER, ?MODULE).
--define(MASTER_NODE, 'master@Tom-VirtualBox').
+-define(MASTER_NODE, 'king@Tom-VirtualBox').
 -define(NODE1, none1).
 -define(NODE2, none2).
 -define(NODE3, none3).
+-define(TIMER_INTERVAL, 1000).
 
--record(state, {nn_amount,mutate_iteration,max_mutate_iteration,rabbit_pos, track,prev_nodes}).
+-record(state, {nn_amount,mutate_iteration,max_mutate_iteration,rabbit_pos, track,prev_nodes, timer_ref}).
 -record(track,{?MASTER_NODE,?NODE1,?NODE2,?NODE3}).
 
 %%%===================================================================
@@ -41,29 +42,58 @@
 %% Starts the server
 %%
 %% @end
-%%--------------------------------------------------------------------
-start_link(Layers,Max_Mutation_iterations,Simulation_steps,NN_amount,Rabbit_pos,Nodes) ->    %Nods={node1,node2,node3}
-  gen_server:start_link({global, king}, ?MODULE, [Layers,Max_Mutation_iterations,Simulation_steps,NN_amount,Rabbit_pos,Nodes],[]).
+%%-----------------
+%% ---------------------------------------------------
+start_link(Layers,Max_Mutation_iterations,Simulation_steps,NN_amount,IsMaster) -> %Nods={node1,node2,node3}
+  ServerId =
+    case IsMaster of
+      true  -> king;
+      false-> utills:generateServerId(?MODULE)
+    end,
+
+  gen_server:start_link({global, ServerId}, ?MODULE, [Layers,Max_Mutation_iterations,Simulation_steps,NN_amount,IsMaster],[]).
 
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
-init([Layers,Max_Mutation_iterations,Simulation_steps,NN_amount,Rabbit_pos,{Node1,Node2,Node3}]) ->
-  db:init(),        %for simulation
-  %db:init([Node1,Node2,Node3]),
+init([Layers,Max_Mutation_iterations,Simulation_steps,NN_amount, IsMaster]) ->
+  %TODO Write configuration to DB SIM_STEPS...
+  Rabbit_pos= exoself:generateRabbitPatrol(),
   Track = #track{?MASTER_NODE = {?MASTER_NODE,maps:new()}, ?NODE1 = {?NODE1,maps:new()},?NODE2 = {?NODE2,maps:new()},?NODE3 = {?NODE3,maps:new()}},
 
-  State = #state{nn_amount = NN_amount,mutate_iteration=1,max_mutate_iteration = Max_Mutation_iterations,
-    rabbit_pos = Rabbit_pos, track=Track,prev_nodes = monitorNodes()},
+  State = #state{nn_amount = NN_amount, mutate_iteration=1, max_mutate_iteration = Max_Mutation_iterations,
+    rabbit_pos = Rabbit_pos, track=Track, prev_nodes = monitorNodes()},
 
-  graphic:start(),
-  {NNids, AgentsIds} = generate_seeds(NN_amount,Layers),
-  population_fsm:start_link(NN_amount,Simulation_steps,self(),{NNids, AgentsIds}),
-  timer:send_interval(80, self(), check_genotyps),
-  {ok, State}.
+  case IsMaster of
+    true->
+      ActiveNodes = monitorNodes(),
+      db:init(ActiveNodes),
+      graphic:start(),
+      startPopulationFSM(self(), NN_amount, Layers, ?SIM_ITERATIONS),
+      lists:foreach(fun(N)-> {N, utills:generateServerId(N, ?MODULE)} ! startSlave end, ActiveNodes),
+      {ok, TimerRef} = timer:send_interval(?TIMER_INTERVAL, self(), check_genotyps),
+      {ok, State#state{timer_ref=TimerRef}};
+
+    false ->
+      mnesia:start(),
+      MasterId = {?MASTER_NODE, king},
+      startPopulationFSM(MasterId, NN_amount, Layers, ?SIM_ITERATIONS),
+      {ok, State}
+%%      io:format("Waiting for master..."),
+%%      receive
+%%        {?MASTER_NODE, startSlave} -> ok
+%%      end
+  end.
+
+
+startPopulationFSM(MasterId, NN_amount,Layers, Simulation_steps)->
+
+  {NNids, AgentsIds} = generateSeeds(NN_amount,Layers),
+  population_fsm:start_link(NN_amount,Simulation_steps, MasterId,{NNids, AgentsIds}).
 
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
+
 
 handle_cast({ok,Node, NNids},State)->
   Servername = utills:generateServerId(Node,population_fsm),
@@ -71,39 +101,36 @@ handle_cast({ok,Node, NNids},State)->
   gen_statem:cast(Servername,{runNetwork, Seeds, 1}),
   {noreply, State};
 
-handle_cast({?MASTER_NODE, done, Mutation_iterations}, State) ->
+handle_cast({Node, done, Mutation_iterations}, State) ->
+  io:format("Done from:~p~n", [Node]),
   Old = State#state.track,
-  {_,TrackNode} = Old#track.?MASTER_NODE,
-  NewTrack = Old#track{?MASTER_NODE = {?MASTER_NODE,maps:put(Mutation_iterations, finish, TrackNode)}},
-  {noreply, State#state{track = NewTrack}};
-
-handle_cast({?NODE1, done, Mutation_iterations},State) ->
-  Old = State#state.track,
-  {_,TrackNode} = Old#track.?NODE1,
-  NewTrack = Old#track{?NODE1 = {?NODE1,maps:put(Mutation_iterations, finish, TrackNode)}},
-  {noreply, State#state{track = NewTrack}};
-
-handle_cast({?NODE2,done, Mutation_iterations},State) ->
-  Old = State#state.track,
-  {_,TrackNode} = Old#track.?NODE2,
-  NewTrack = Old#track{?NODE2 = {?NODE2,maps:put(Mutation_iterations, finish, TrackNode)}},
-  {noreply, State#state{track = NewTrack}};
-
-handle_cast({?NODE3,done, Mutation_iterations}, State) ->
-  Old = State#state.track,
-  {_,TrackNode} = Old#track.?NODE3,
-  NewTrack = Old#track{?NODE3 = {?NODE3,maps:put(Mutation_iterations, finish, TrackNode)}},
+  NewTrack = case Node of
+               ?MASTER_NODE->
+                 {_,TrackNode} = Old#track.?MASTER_NODE,
+                 Old#track{?MASTER_NODE = {?MASTER_NODE,maps:put(Mutation_iterations, finish, TrackNode)}};
+               ?NODE1->
+                 {_,TrackNode} = Old#track.?NODE1,
+                 Old#track{?NODE1 = {?NODE1,maps:put(Mutation_iterations, finish, TrackNode)}};
+               ?NODE2->
+                 {_,TrackNode} = Old#track.?NODE2,
+                 Old#track{?NODE2 = {?NODE2,maps:put(Mutation_iterations, finish, TrackNode)}};
+               ?NODE3->
+                 {_,TrackNode} = Old#track.?NODE3,
+                 Old#track{?NODE3 = {?NODE3,maps:put(Mutation_iterations, finish, TrackNode)}};
+               _-> ok
+             end,
   {noreply, State#state{track = NewTrack}}.
-
 
 handle_info(_Info, State) ->
   Mutate_iteration = State#state.mutate_iteration,
   Active_Nodes= monitorNodes(),
-  case Active_Nodes==State#state.prev_nodes of
-    true-> handleIteration(State,Active_Nodes,Mutate_iteration);
-    false -> State#state{prev_nodes = Active_Nodes}, restartIteration()
-  end,
-  {noreply, State}.
+  NewState = case Active_Nodes==State#state.prev_nodes of
+               true-> handleIteration(State,Active_Nodes,Mutate_iteration);
+               false -> Updated_State = State#state{prev_nodes = Active_Nodes},
+                 restartIteration(Updated_State,Mutate_iteration, Active_Nodes)
+             end,
+
+  {noreply, NewState}.
 
 terminate(_Reason, _State) -> ok.
 
@@ -113,51 +140,83 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 %%% Internal functions
 %%%===================================================================
 
+turnOffTimer(TRef) -> RES = timer:cancel(TRef), io:format(RES).
+filterNodesMaps([],_, Acc)-> lists:reverse(Acc);
+
+filterNodesMaps([Node|ActiveNodes],Maps, Acc)->
+  {_, Map} = lists:keyfind(Node, 1, Maps),
+  filterNodesMaps(ActiveNodes, Maps, [Map|Acc]).
+
+
 handleIteration(State,Active_Nodes,Mutate_iteration) ->
-  Track = State#state.track, Maps = tl(tuple_to_list(Track)),
-  io:format("Map:~p~n", [Maps]),  io:format("Active_Nodes:~p~n", [Active_Nodes]),
-  Readys = [ready||Node <-Active_Nodes, {_,Map} =lists:keyfind(Node, 1, Maps),
-    (maps:find(Mutate_iteration,Map)==error)==false],
-  io:format("Readys:~p~n", [Readys]),
+  Track = State#state.track, Maps_list = tl(tuple_to_list(Track)),
+  Maps = filterNodesMaps(Active_Nodes, Maps_list, []),
+  Readys = [ready ||M <-Maps,maps:find(Mutate_iteration,M)=/=error],
   case length(Readys)==length(Active_Nodes) of
-    true->  io:format("handleIteration:~n"),io:format("Active_Nodes:~p~n", [Active_Nodes]),
-     io:format("Mutate_iteration:~p~n", [Mutate_iteration]),
+    true-> io:format("handleIteration:~p~n", [Mutate_iteration]),
       case Mutate_iteration==State#state.max_mutate_iteration of
-             false->State#state{mutate_iteration= Mutate_iteration+1},calc(Mutate_iteration,Active_Nodes),{noreply, State};
-             true-> {Best_score,Best_Genotype,Processes_cnt} = choose_best(Mutate_iteration),
-               Cx = hd(Best_Genotype),
-               Nurons_num = length(Cx#cortex.nids),
-               Statistics = [{process, Processes_cnt},{neurons, Nurons_num},{fitness, Best_score}],
-               Agent = utills:generateServerId(?MASTER_NODE, nn1),
-               Hunter_path = gen_server:call(Agent,{run_simulation,Best_Genotype}),
-               display(Hunter_path,State#state.rabbit_pos,Statistics),{noreply, State}
-           end;
-    false-> {noreply, State}
+        false->
+          Updated_State = State#state{mutate_iteration= Mutate_iteration+1},
+          triggerCalcState(Mutate_iteration,Active_Nodes,Updated_State),Updated_State;
+        true->
+          io:format("Final Iteration:~n"),
+          {Best_score,Best_Genotype,Processes_cnt} = chooseBest(Mutate_iteration),
+          io:format("Best_score:~p~n", [Best_score]),
+          io:format("Processes_cnt:~p~n", [Processes_cnt]),
+          Cx = hd(Best_Genotype),
+          Nurons_num = length(Cx#cortex.nids),
+          io:format("Nurons_num:~p~n", [Nurons_num]),
+          Statistics = [{process, Processes_cnt},{neurons, Nurons_num},{fitness, Best_score}],
+          Agent = utills:generateServerId(?MASTER_NODE, nn1),
+          io:format("Sending simulation to agent:~p~n", [Agent]),
+
+          {ok,Path} = gen_server:call(Agent,{run_simulation,Best_Genotype}),
+          io:format("hunter path:~p~n", [Path]),
+          display(Path,Statistics),
+
+          io:format("TIMER_REF~p~n", [State#state.timer_ref]),
+          %turnOffTimer(State#state.timer_ref),
+          io:format("whoooo~p~n", [State#state.timer_ref]),
+
+          State
+      end;
+    false-> State
   end.
 
 
-calc(Mutation_iterations,Active_Nodes)-> %%mnesia:force_load_table(db),
+triggerCalcState(Mutation_iterations,Active_Nodes,Updated_State)-> %%mnesia:force_load_table(db),
   {atomic,List} = db:read_all_mutateIter(Mutation_iterations),
   Filtered = [{Score,{NNid,MutatIter}}||{db,NNid,MutatIter,_,_,Score} <-List],
-  Sortd_by_score = lists:keysort(1,Filtered),Bests_genotyps = lists:sublist(Sortd_by_score,#state.nn_amount),brodcast_genotyps(Bests_genotyps,Active_Nodes).
+  Sortd_by_score = lists:keysort(1,Filtered),
+  Bests_genotyps = lists:sublist(Sortd_by_score,Updated_State#state.nn_amount),
+  io:format("Bests_genotyps:~p~n", [Bests_genotyps]),
+  broadcastGenes(Bests_genotyps,Active_Nodes,Updated_State).
 
-brodcast_genotyps(Bests_genotyps,Active_Nodes)-> Choden_Genes = [{NNid,MutatIter}||{_,{NNid,MutatIter}} <-Bests_genotyps],
-  Node_Names = [utills:generateServerId(Node,?MODULE)||Node<-Active_Nodes],
-  lists:foreach(fun(Node_name)-> gen_server:cast(Node_name, {runNetwork, Choden_Genes, #state.mutate_iteration}) end,Node_Names).
+broadcastGenes(Bests_genotyps,Active_Nodes,Updated_State)->
+  ChosenGenes = [{NNid,MutatIter}||{_,{NNid,MutatIter}} <-Bests_genotyps],
+  io:format("ChosenGenes:~p~n", [ChosenGenes]),
+  %TODO CAST TO NODES
+  % PopAddresses = [{Node, utills:generateServerId(Node, population_fsm)}||Node<-Active_Nodes],
+  PopAddresses = [utills:generateServerId(Node, population_fsm)||Node<-Active_Nodes],
+  io:format("PopAddresses:~p~n", [PopAddresses]),
+  TriggerCalc = fun(PopAddr)-> gen_server:cast(PopAddr, {runNetwork, ChosenGenes, Updated_State#state.mutate_iteration}) end,
+  lists:foreach(TriggerCalc, PopAddresses).
 
-choose_best(Mutation_iterations)->%%mnesia:force_load_table(db),
+chooseBest(Mutation_iterations)->%%mnesia:force_load_table(db),
   {atomic,List} = db:read_all_mutateIter(Mutation_iterations),
   Filtered = [{Score,{Genotype,Processes_cnt}}||{db,_,_,Genotype,Processes_cnt,Score} <-List],
   Sortd_by_score = lists:keysort(1,Filtered), {Score,{Genotype,Processes_cnt}}=hd(Sortd_by_score),
   {Score,Genotype,Processes_cnt}.
 
-display([],[],_)-> ok;
-display([Hunter_Pos|Hun_Positions],[Rabbit_Pos|Rab_Positions],Statistics)->
-  graphic:update_location(Rabbit_Pos,Hunter_Pos,Statistics),
-  display(Hun_Positions,Rab_Positions,Statistics).
+display([],_)-> turnOffTimer;
+display([[R_X,R_Y,H_X,H_Y]|Path],Statistics)->
+  graphic:update_location({R_X*20,R_Y*20},{H_X*20,H_Y*20},Statistics),
+  timer:sleep(500),
+  io:format("CurrentPath~p~n", [Path]),
+  display(Path,Statistics).
 
-
-generate_seeds(NN_amount,Layers)-> % Initialize State
+generateSeeds(NN_amount,Layers)-> % Initialize State
+  % Each node create it's own seed
   NNnames = [list_to_atom("nn" ++ integer_to_list(N)) || N<-lists:seq(1,NN_amount)], % nn1, nn2...
   NNids = [{node(), Name} || Name<-NNnames], % [{node(), nn1}]...
   AgentsIds = [list_to_atom(atom_to_list(Node) ++ "_" ++ atom_to_list(Id)) || {Node, Id}<-NNids], % [node1_nn1, node2_nn2]...
@@ -173,4 +232,32 @@ monitorNodes()->
   NodeList = [?MASTER_NODE, ?NODE1, ?NODE2, ?NODE3],
   [Node || Node<- NodeList, net_adm:ping(Node)==pong].
 
-restartIteration()->elad.
+
+restartIteration(State, MutIter, ActiveNodes)->
+  db:delete_all_mutateIter(MutIter),
+  LastIterBestGenes = db:select_best_genes(MutIter),
+  io:format("BEFORE:~n~p~n", [State#state.track#track.?MASTER_NODE]),
+  Updated_State = removeMutIter(ActiveNodes,MutIter,State),
+  io:format("AFTER:~n~p~n", [Updated_State#state.track#track.?MASTER_NODE]),
+
+  broadcastGenes(LastIterBestGenes, ActiveNodes,Updated_State), Updated_State.
+
+removeMutIter([],_, State) ->State;
+removeMutIter([Node|ActiveNodes],Mutation_iterations, State) ->
+  Old = State#state.track,
+  NewTrack = case Node of
+               ?MASTER_NODE->
+                 {_,TrackNode} = Old#track.?MASTER_NODE,
+                 Old#track{?MASTER_NODE = {?MASTER_NODE,maps:remove(Mutation_iterations,TrackNode)}};
+               ?NODE1->
+                 {_,TrackNode} = Old#track.?NODE1,
+                 Old#track{?NODE1 = {?NODE1,maps:remove(Mutation_iterations,TrackNode)}};
+               ?NODE2->
+                 {_,TrackNode} = Old#track.?NODE2,
+                 Old#track{?NODE2 = {?NODE2,maps:remove(Mutation_iterations,TrackNode)}};
+               ?NODE3->
+                 {_,TrackNode} = Old#track.?NODE3,
+                 Old#track{?NODE3 = {?NODE3,maps:remove(Mutation_iterations,TrackNode)}};
+               _-> ok
+             end,
+  removeMutIter(ActiveNodes,Mutation_iterations, State#state{track = NewTrack}).

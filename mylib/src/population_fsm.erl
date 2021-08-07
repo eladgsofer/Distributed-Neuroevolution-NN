@@ -86,6 +86,7 @@ format_status(_Opt, [_PDict, _StateName, _State]) -> Status = some_term, Status.
 %% functions is called when gen_statem receives and event from
 %% call/2, cast/2, or as a normal process message.
 calc_state(cast, {runNetwork, BestGenesIds, MutIter}, #pop_state{agentsIds = AgentsIds} =  StateData) ->
+  io:format("Calc state Recevied: ~p~n", [{runNetwork, BestGenesIds, MutIter}]),
 
   Genes = db:select_best_genes(BestGenesIds),
   if
@@ -112,7 +113,8 @@ fitting_state(cast, {sync, AgentId}, #pop_state{mutIter = MutIter, masterPid = M
   % Find if everyone sent their sync
   Pred = fun(_,V) -> V =:= false end,
   SyncMapper = maps:filter(Pred,UpdatedMapper),
-  io:format("got sync from ~p current table is~p~n", [AgentId, SyncMapper]),
+
+  io:format("fitting_staet: got sync from ~p current table is~p~n", [AgentId, SyncMapper]),
   case maps:size(SyncMapper) of
     0 ->
       % prepare an empty mapper
