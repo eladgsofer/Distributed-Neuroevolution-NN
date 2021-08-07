@@ -63,7 +63,7 @@ init({NN_Amount, Sim_Steps, ServerId, MasterPid, EnvParams}) ->
   agents_mgmt:start_link(CollectorPid, NNids, AgentsIds),
 
   % Send the master ACK that I'm ready
-  gen_server:cast(MasterPid, {ok, NNids}),
+  gen_server:cast(MasterPid, {ok, node(), NNids}),
   % call agents mgmt
   io:format("Hi I am FSM ~p~n", [ServerId]),
   {ok, calc_state, StateData}.

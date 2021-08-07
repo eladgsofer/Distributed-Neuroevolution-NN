@@ -17,8 +17,10 @@ loop(ExoSelf_PId) ->
 		{ExoSelf_PId,{Id,SPIds,APIds,NPIds},TotSteps} ->
 			put(start_time,now()),
 			Init_loc=?HUNTER_INIT_LOC,
+			[RabbitFLoc|_] = exoself:generateRabbitPatrol(),
+			FirstSimStep = RabbitFLoc ++ Init_loc,
 			[SPId ! {self(),sync,Init_loc} || SPId <- SPIds],
-			loop(Id,ExoSelf_PId,SPIds,{APIds,APIds},NPIds,TotSteps, {Init_loc, 0, []})
+			loop(Id,ExoSelf_PId,SPIds,{APIds,APIds},NPIds,TotSteps, {Init_loc, 0, [FirstSimStep]})
 	end.
 %The gen/2 function spawns the cortex element, which immediately starts to wait for a the state message from the same process that spawned it, exoself. The initial state message contains the sensor, actuator, and neuron PId lists. The message also specifies how many total Sense-Think-Act cycles the Cortex should execute before terminating the NN system. Once we implement the learning algorithm, the termination criteria will depend on the fitness of the NN, or some other useful property
 

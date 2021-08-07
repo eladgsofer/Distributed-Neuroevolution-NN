@@ -37,7 +37,7 @@ map(FileName, Genotype)->
 
 	% Initialize entities
 	link_CerebralUnits(CerebralUnits,IdsNPIds),
-	link_Cortex(Cx,IdsNPIds),
+	link_Cortex(Cx,IdsNPIds), %TODO transfer cortex the simulation steps
 	Cx_PId = ets:lookup_element(IdsNPIds,Cx#cortex.id,2),
 	receive
 		% Writing to a file in the end of the process
@@ -77,8 +77,8 @@ link_CerebralUnits([R|Records],IdsNPIds) when is_record(R,sensor) ->
 	SName = R#sensor.name,
 	Fanout_Ids = R#sensor.fanout_ids,
 	Fanout_PIds = [ets:lookup_element(IdsNPIds,Id,2) || Id <- Fanout_Ids],
-	SensoryVector=[[I,I]||I<-lists:seq(1,?SIM_ITERATIONS)],
 
+	SensoryVector = generateRabbitPatrol(),
 	% Init message
 	SPId ! {self(),{SId,Cx_PId,SName,R#sensor.vl,Fanout_PIds,SensoryVector}},
 	link_CerebralUnits(Records,IdsNPIds);
@@ -125,6 +125,8 @@ link_Cortex(Cx,IdsNPIds) ->
 	SPIds = [ets:lookup_element(IdsNPIds,SId,2) || SId <- SIds],
 	APIds = [ets:lookup_element(IdsNPIds,AId,2) || AId <- AIds],
 	NPIds = [ets:lookup_element(IdsNPIds,NId,2) || NId <- NIds],
+
+
 	Cx_PId ! {self(),{Cx_Id,SPIds,APIds,NPIds},8}.
 %The cortex is initialized to its proper state just as other elements. Because we have not yet implemented a learning algorithm for our NN system, we need to specify when the NN should shutdown. We do this by specifying the total number of cycles the NN should execute before terminating, which is 1000 in this case.
 
@@ -143,3 +145,6 @@ convert_PIdPs2IdPs(IdsNPIds,[{PId,Weights}|Input_PIdPs],Acc)->
 convert_PIdPs2IdPs(_IdsNPIds,[Bias],Acc)->
 	lists:reverse([{bias,Bias}|Acc]).
 %For every {N_Id,PIdPs} tuple the update_genotype/3 function extracts the neuron with the id: N_Id, and updates its weights. The convert_PIdPs2IdPs/3 performs the conversion from PIds to Ids of every {PId,Weights} tuple in the Input_PIdPs list. The updated Genotype is then returned back to the caller.
+
+generateRabbitPatrol()->
+	[[I,I]||I<-lists:seq(1,?SIM_ITERATIONS)].
