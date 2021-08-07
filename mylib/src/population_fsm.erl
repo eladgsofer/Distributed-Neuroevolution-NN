@@ -16,7 +16,7 @@
 
 %% gen_statem callbacks
 -export([init/1,fitting_state/3, format_status/2, calc_state/3, terminate/3, callback_mode/0]).
--record(pop_state, {agentsMapper, genes, ets, simSteps, serverId, mutIter,nn_amount, masterPid, agentsIds}).
+-record(pop_state, {agentsMapper, genes, ets, simSteps, serverId, mutIter,nn_amount, masterPid, agentsIds, nnIds, agentsMgmt}).
 
 -define(SERVER, ?MODULE).
 
@@ -48,6 +48,9 @@ init({NN_Amount, Sim_Steps, ServerId, MasterPid, EnvParams}) ->
   {NNids, AgentsIds} =EnvParams,
 
   AgentsMapper = maps:from_list([{A, false} ||A<-AgentsIds]),
+  CollectorPid = ServerId,
+  % Start the agents supervisor
+  AgentsMgmt = agents_mgmt:start_link(CollectorPid, NNids, AgentsIds),
 
   StateData = #pop_state{
     simSteps = Sim_Steps,
@@ -55,12 +58,9 @@ init({NN_Amount, Sim_Steps, ServerId, MasterPid, EnvParams}) ->
     masterPid = MasterPid,
     nn_amount=NN_Amount,
     agentsMapper=AgentsMapper,
+    agentsMgmt=AgentsMgmt,
+    nnIds= NNids,
     agentsIds = AgentsIds},
-
-  CollectorPid = ServerId,
-
-  % Start the agents supervisor
-  agents_mgmt:start_link(CollectorPid, NNids, AgentsIds),
 
   % Send the master ACK that I'm ready
   gen_server:cast(MasterPid, {ok, node(), NNids}),
@@ -85,24 +85,43 @@ format_status(_Opt, [_PDict, _StateName, _State]) -> Status = some_term, Status.
 %% state name.  If callback_mode is state_functions, one of these
 %% functions is called when gen_statem receives and event from
 %% call/2, cast/2, or as a normal process message.
-calc_state(cast, {runNetwork, BestGenesIds, MutIter}, #pop_state{agentsIds = AgentsIds} =  StateData) ->
+calc_state(cast, {runNetwork, BestGenesIds, MutIter}, #pop_state{agentsIds = AgentsIds, nnIds = NNIds} =  StateData) ->
   io:format("Calc state Recevied: ~p~n", [{runNetwork, BestGenesIds, MutIter}]),
 
-  Genes = db:select_best_genes(BestGenesIds),
-  if
-    length(Genes)=:=length(AgentsIds) ->
-      AgentsGenesZip = lists:zip(Genes, AgentsIds),
+  Genes = db:select_best_genes(BestGenesIds), ALen = length(AgentsIds), GLen = length(Genes),
+  NewState = if
+               ALen==GLen ->
+                 broadCastAgents(Genes,AgentsIds,MutIter),
+                 StateData;
 
-      ExecFunc = fun(ExecData) -> {Gene, Agent} = ExecData,
-        gen_server:cast(Agent, {executeIteration, MutIter, Gene}) end,
+               ALen > GLen->
+                 SortedAgents = lists:sort(AgentsIds),
+                 ActiveAgentsIds = lists:sublist(SortedAgents, GLen),
 
-      % execute all the agents async
-      lists:foreach(ExecFunc, AgentsGenesZip);
-    true -> ok %TODO ADD SUPPORT FOR BACKUP MODE
-  end,
+                 PassiveAgentsIds = lists:sublist(SortedAgents, GLen, length(SortedAgents)),
+                 lists:foreach(fun(C)->supervisor:delete_child(StateData#pop_state.agentsMgmt,C) end, PassiveAgentsIds),
+                 broadCastAgents(Genes,ActiveAgentsIds,MutIter),
+                 %TODO make sure that NNIds, is ordered? potential bug
+                 StateData#pop_state{agentsIds=ActiveAgentsIds, nnIds =lists:sublist(NNIds, 1, ALen)};
+
+               ALen<GLen ->
+                 NewAgentsCnt = GLen - ALen,
+                 {NewNNIds, NewAgentsIds} = utills:generateNNIds(ALen+1, NewAgentsCnt), %Tuple of {NNIds, AgentsIds}
+                 AgentsIds = StateData#pop_state.agentsIds,
+
+                 % Extract AgentId
+                 Agent1Id = utills:generateServerId(node(), nn1),
+                 AgentSpec = supervisor:get_childspec(StateData#pop_state.agentsMgmt, Agent1Id),
+                 [CollectorPid| _] = maps:get('A', maps:get(start,AgentSpec)),
+
+                 NewAgentsSpecs = agents_mgmt:generateChildrensSpecs(NewNNIds, NewAgentsIds,CollectorPid), % CollectorPid?
+                 lists:foreach(fun(ChildSpec)->supervisor:start_child(StateData#pop_state.agentsMgmt, ChildSpec) end, NewAgentsSpecs),
+                 broadCastAgents(Genes,AgentsIds,MutIter),
+                 StateData#pop_state{agentsIds=AgentsIds++NewAgentsIds, nnIds =NewNNIds}
+             end,
 
   io:format("AGENTS EXECUTED:~n"),
-  {next_state, fitting_state, StateData#pop_state{mutIter=MutIter}};
+  {next_state, fitting_state, NewState#pop_state{mutIter=MutIter}};
 
 % If a sync message arrived before entering the next_state
 calc_state(cast, {sync, AgentId}, Data) -> fitting_state(cast, {sync, AgentId}, Data).
@@ -114,7 +133,7 @@ fitting_state(cast, {sync, AgentId}, #pop_state{mutIter = MutIter, masterPid = M
   Pred = fun(_,V) -> V =:= false end,
   SyncMapper = maps:filter(Pred,UpdatedMapper),
 
-  %io:format("fitting_staet: got sync from ~p current table is~p~n", [AgentId, SyncMapper]),
+  io:format("fitting_staet: got sync from ~p current table is~p~n", [AgentId, SyncMapper]),
   case maps:size(SyncMapper) of
     0 ->
       % prepare an empty mapper
@@ -141,10 +160,9 @@ terminate(_Reason, _StateName, _State = #population_fsm_state{}) -> ok.
 %%% Internal functions
 %%%===================================================================
 
-% No need... part of the genstateM
-%%collectAgentsReply(ServerId, [AgentId|Ids]) ->
-%%  receive
-%%    {AgentId, sync} -> collectAgentsReply(ServerId, Ids)
-%%  end;
-%%
-%%collectAgentsReply(ServerId, []) -> gen_statem:cast(ServerId, done_calc).
+broadCastAgents(Genes, AgentsIds, MutIter)->
+  AgentsGenesZip = lists:zip(Genes, AgentsIds),
+  ExecFunc = fun(ExecData) -> {Gene, Agent} = ExecData,
+    gen_server:cast(Agent, {executeIteration, MutIter, Gene}) end,
+  % execute all the agents async
+  lists:foreach(ExecFunc, AgentsGenesZip).
