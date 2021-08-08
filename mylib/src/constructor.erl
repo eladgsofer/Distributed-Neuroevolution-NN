@@ -39,9 +39,8 @@ construct_Genotype(FileName, SensorName,ActuatorName,HiddenLayerDensities)->
 	% Genotype
 	Genotype = lists:flatten([Cortex,Sensor,Actuator|Neurons]),
 	% write to a file & DB
-	{ok, File} = file:open(FileName, write),
-	lists:foreach(fun(X) -> io:format(File, "~p.~n",[X]) end, Genotype),
-	file:close(File), Genotype.
+	%writeLog(FileName, Genotype),
+	Genotype.
 %The construct_Genotype function accepts the name of the file to which we'll save the genotype, sensor name, actuator name, and the hidden layer density parameters. We have to generate unique Ids for every sensor and actuator. The sensor and actuator names are used as input to the create_Sensor and create_Actuator functions, which in turn generate the actual Sensor and Actuator representing tuples. We create unique Ids for sensors and actuators so that when in the future a NN uses 2 or more sensors or actuators of the same type, we will be able to differentiate between them using their Ids. After the Sensor and Actuator tuples are generated, we extract the NN's input and output vector lengths from the sensor and actuator used by the system. The Input_VL is then used to specify how many weights the neurons in the input layer will need, and the Output_VL specifies how many neurons are in the output layer of the NN. After appending the HiddenLayerDensites to the now known number of neurons in the last layer to generate the full LayerDensities list, we use the create_NeuroLayers function to generate the Neuron representing tuples. We then update the Sensor and Actuator records with proper fanin and fanout ids from the freshly created Neuron tuples, composes the Cortex, and write the genotype to file.
 
 	create_Sensor(SensorName) -> 
@@ -128,3 +127,8 @@ construct_Genotype(FileName, SensorName,ActuatorName,HiddenLayerDensities)->
 	create_Cortex(Cx_Id,S_Ids,A_Ids,NIds) ->
 		#cortex{id = Cx_Id, sensor_ids=S_Ids, actuator_ids=A_Ids, nids = NIds}.
 %The create_Cortex/4 function generates the record encoded genotypical representation of the cortex element. The Cortex element needs to know the Id of every Neuron, Sensors, and Actuator in the NN. 
+
+writeLog(FileName, Genotype)->
+	{ok, File} = file:open(FileName, write),
+	lists:foreach(fun(X) -> io:format(File, "~p.~n",[X]) end, Genotype),
+	file:close(File).

@@ -42,10 +42,8 @@ map(FileName, Genotype)->
 	receive
 		% Writing to a file in the end of the process
 		{Cx_PId,score_and_backup,{Neuron_IdsNWeights, Score, SimStepsVec}} ->
-			U_Genotype = update_genotype(IdsNPIds,Genotype,Neuron_IdsNWeights),
-			{ok, File} = file:open(FileName, write),
-			lists:foreach(fun(X) -> io:format(File, "~p.~n",[X]) end, U_Genotype),
-			file:close(File),
+
+			%writeLog(FileName, IdsNPIds,Genotype,Neuron_IdsNWeights),
 			%io:format("Finished updating to file:~p~n",[FileName]),
 			{Score, ProcessesCount, SimStepsVec}
 			%io:format("FINISHED WITH ~p~n", [Res]), Res
@@ -148,3 +146,9 @@ convert_PIdPs2IdPs(_IdsNPIds,[Bias],Acc)->
 
 generateRabbitPatrol()->
 	[[I,I]||I<-lists:seq(1,?SIM_ITERATIONS)].
+
+writeLog(FileName, IdsNPIds,Genotype,Neuron_IdsNWeights)->
+	U_Genotype = update_genotype(IdsNPIds,Genotype,Neuron_IdsNWeights),
+	{ok, File} = file:open(FileName, write),
+	lists:foreach(fun(X) -> io:format(File, "~p.~n",[X]) end, U_Genotype),
+	file:close(File).
