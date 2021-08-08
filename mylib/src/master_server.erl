@@ -25,7 +25,7 @@
 -compile(export_all).
 
 -define(SERVER, ?MODULE).
--define(MASTER_NODE, 'king@pds-MacBook-Pro').
+-define(MASTER_NODE, 'king@Tom-VirtualBox').
 -define(NODE1, none1).
 -define(NODE2, none2).
 -define(NODE3, none3).

@@ -12,6 +12,4 @@
 -record(genotype, {nn_id, score, processes_info}).
 -record(db, {nn_id, mutId, gene, processes_count, score}).
 -define(SIM_ITERATIONS, 10).
--define(MUT_ITERATIONS, 10).
 -define(HUNTER_INIT_LOC, [3,3]).
--define(NN_AMOUNT, 3).

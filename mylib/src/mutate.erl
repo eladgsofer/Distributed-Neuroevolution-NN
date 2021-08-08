@@ -9,6 +9,7 @@
 -module(mutate).
 -author("tom").
 -include("records.hrl").
+-define(AF_list, [tanh,cos,sin,sigmoid]).
 
 %% API
 -export([mutate/1]).
@@ -27,6 +28,7 @@ mutate(T,0,_)-> [Head|Tail] = ets:tab2list(T),L = lists:reverse(Tail),
   New_Genotype = [hd(L)]++[Head]++tl(L),New_Genotype;
 
 mutate(T,N,Cx)->
+  %TODO 7
   X = rand:uniform(7),
   case X of
     1->io:format("setBias:~n"), setBias(T,N,Cx);
@@ -35,7 +37,9 @@ mutate(T,N,Cx)->
     4->io:format("addNeuron:~n"),addNeuron(T,N,Cx);
     5->io:format("removeEdge:~n"),removeEdge(T,N,Cx);
     6->io:format("changeWeight:~n"),changeWeight(T,N,Cx);
-    7-> io:format("removeNeuron:~n"),removeNeuron(T,N,Cx)
+    %7-> io:format("removeNeuron:~n"),removeNeuron(T,N,Cx);
+    7-> io:format("ChangeAF:~n"),changeAF(T,N,Cx)
+
   end.
 
 setBias(T,N,Cx)->
@@ -208,36 +212,48 @@ removeNeuron(T,N,Cx)->
     _->Id_chosen = lists:nth(rand:uniform(length(Middle_neurons)),Middle_neurons),
       Chosen_Neuron = hd(ets:select(T, [{#neuron{id=Id_chosen, cx_id='_', af='_', input_idps = '_',output_ids='_'}, [], ['$_']}])),
       Inputs_tmp = [Id||{Id,_} <- Chosen_Neuron#neuron.input_idps],
-      Inputs = lists:sublist(Inputs_tmp,length(Inputs_tmp)-1),
+      Inputs_ids = lists:sublist(Inputs_tmp,length(Inputs_tmp)-1),
+      Inputs_Weight= lists:sublist( Chosen_Neuron#neuron.input_idps,length( Chosen_Neuron#neuron.input_idps)-1),
       Outputs=Chosen_Neuron#neuron.output_ids,
-      Tab =removeNeuronEdges(T,Inputs,Outputs,Chosen_Neuron#neuron.id),
+      io:format("Chosen_Neuron: ~p~n", [Chosen_Neuron]),
+      Tab = change_output(T,Inputs_ids,Outputs,Id_chosen),
+      New_Tab = change_input(Tab,Inputs_Weight,Outputs,Id_chosen),
       New_Cx = Cx#cortex{nids = lists:delete(Chosen_Neuron#neuron.id,Cx#cortex.nids)},
-      ets:delete_object(Tab,Cx),
-      ets:insert(Tab,New_Cx),
-      Del = hd(ets:select(Tab, [{#neuron{id=Id_chosen, cx_id='_', af='_', input_idps = '_',output_ids='_'}, [], ['$_']}])),
-      ets:delete_object(Tab,Del),
+      ets:delete_object(New_Tab,Cx),
+      ets:insert(New_Tab,New_Cx),
+      %Del = hd(ets:select(Tab, [{#neuron{id=Id_chosen, cx_id='_', af='_', input_idps = '_',output_ids='_'}, [], ['$_']}])),
+      ets:delete_object(New_Tab,Chosen_Neuron),
       mutate(Tab,N-1,New_Cx)
   end.
 
 
-removeNeuronEdges(T,[],[],_)->T;
+change_input(T,_,[],_)->T;
+change_input(T,Inputs,[{Name,Id}|Outputs],Id_chosen)->
+  Chosen = hd(ets:select(T, [{#neuron{id={Name,Id}, cx_id='_', af='_', input_idps = '_',output_ids='_'}, [], ['$_']}])),
+  Chosen_inputs = Chosen#neuron.input_idps,
+  Chosen_inputs_U = [{I1,W}||{I1,W}<-Chosen_inputs,I1 =/= Id_chosen],
+  Inputs_U = [{I2,W}||{I2,W}<-Inputs,lists:member(I2,Chosen_inputs_U)==false],
+  U_Chosen = Chosen#neuron{input_idps = Inputs_U++Chosen_inputs_U},
+  ets:delete_object(T,Chosen),
+  ets:insert(T,U_Chosen),
+  change_input(T,Inputs,Outputs,Id_chosen).
 
-removeNeuronEdges(T,[{Name_from,Id_from}|Inputs],[],{Chosen_name,Chosen_Id})->
-  T1 = removeEdge(T,Name_from,Id_from,Chosen_name,Chosen_Id,from),
-  T2= removeEdge(T1,Name_from,Id_from,Chosen_name,Chosen_Id,to),
-  removeNeuronEdges(T2,Inputs,[],{Chosen_name,Chosen_Id});
 
-removeNeuronEdges(T,[],[{Name_to,Id_to}|Outputs],{Chosen_name,Chosen_Id})->
-  T1 = removeEdge(T,Chosen_name,Chosen_Id,Name_to,Id_to,from),
-  T2= removeEdge(T1,Chosen_name,Chosen_Id,Name_to,Id_to,to),
-  removeNeuronEdges(T2,[],Outputs,{Chosen_name,Chosen_Id});
-
-removeNeuronEdges(T,[{Name_from,Id_from}|Inputs],[{Name_to,Id_to}|Outputs],{Chosen_name,Chosen_Id})->
-  T1 = removeEdge(T,Name_from,Id_from,Chosen_name,Chosen_Id,from),
-  T2= removeEdge(T1,Name_from,Id_from,Chosen_name,Chosen_Id,to),
-  T3 = removeEdge(T2,Chosen_name,Chosen_Id,Name_to,Id_to,from),
-  T4= removeEdge(T3,Chosen_name,Chosen_Id,Name_to,Id_to,to),
-  removeNeuronEdges(T4,Inputs,Outputs,{Chosen_name,Chosen_Id}).
+change_output(T,[],_,_)->T;
+change_output(T,[{Name,Id}|Inputs],Outputs,Id_chosen)->
+  case Name of
+    neuron-> Chosen = hd(ets:select(T, [{#neuron{id={Name,Id}, cx_id='_', af='_', input_idps = '_',output_ids='_'}, [], ['$_']}])),
+      Chosen_outputs = Chosen#neuron.output_ids,
+      Chosen_outputs_U = lists:delete(Id_chosen,Chosen_outputs),
+      Outputs_U = [Elem||Elem<-Outputs,lists:member(Elem,Chosen_outputs_U)==false],
+      U_Chosen = Chosen#neuron{output_ids =  Chosen_outputs_U++Outputs_U},U_Chosen;
+    sensor-> Chosen = hd(ets:select(T, [{#sensor{id={Name,Id}, cx_id='_', name='_', vl = '_',fanout_ids='_'}, [], ['$_']}])),
+      Chosen_outputs = Chosen#sensor.fanout_ids,
+      U_Chosen = Chosen#sensor{fanout_ids =  lists:delete(Id_chosen,Chosen_outputs)++Outputs},U_Chosen
+  end,
+  ets:delete_object(T,Chosen),
+  ets:insert(T,U_Chosen),
+  change_output(T,Inputs,Outputs,Id_chosen).
 
 
 legal_edge(Tab, Id_to)->
@@ -247,4 +263,16 @@ legal_edge(Tab, Id_to)->
     true-> false;
     false-> true
   end.
+
+
+changeAF(T,N,Cx)->
+  Nids = Cx#cortex.nids,
+  I=rand:uniform(length(Nids)),
+  Id_chosen = lists:nth(I, Nids),
+  Neuron = hd(ets:select(T, [{#neuron{id=Id_chosen, cx_id='_', af='_', input_idps = '_',output_ids='_'}, [], ['$_']}])),
+  U_N = Neuron#neuron{af = lists:nth(rand:uniform(length(?AF_list)), ?AF_list)},
+  ets:delete_object(T,Neuron),
+  ets:insert(T,U_N),
+  mutate(T,N-1,Cx).
+
 
