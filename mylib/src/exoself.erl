@@ -33,7 +33,7 @@ map(FileName, Genotype)->
 	spawn_CerebralUnits(IdsNPIds,neuron,NIds),
 
 	% Counting how many processes in this Mutation iteration
-	ProcessesCount = lists:flatlength(Sensor_Ids ++ Actuator_Ids ++ NIds) + 1,
+	ProcessesCount = length(Sensor_Ids ++ Actuator_Ids ++ NIds) + 1,
 
 	% Initialize entities
 	link_CerebralUnits(CerebralUnits,IdsNPIds),
