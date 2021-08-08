@@ -37,18 +37,15 @@ handle_call({run_simulation, Gene}, _From, State = #agent_state{agentId = AgentI
 handle_cast({executeIteration, MutId, Gene}, State = #agent_state{nnId=NNid, collectorPid=CollectorPid, agentId = AgentId}) ->
   % NNid is the AgentId as well, each agent has it's own network to handle.
 
-
   MutatedGene = mutate:mutate(Gene),
   %io:format("AgentId:~p|Gene:~p|~n",[AgentId, Gene]),
-  {Score, ProcessesCount, _} = exoself:map(AgentId,Gene),
+  FileName = list_to_atom("logs/" ++ atom_to_list(AgentId) ++ "_" ++integer_to_list(MutId)),
+
+  {Score, ProcessesCount, _} = exoself:map(FileName, MutatedGene),
   io:format("NNid:~p|Score:~p|Processes Count:~p~n",[AgentId, Score, ProcessesCount]),
   db:write(NNid,MutId,MutatedGene,ProcessesCount, Score),
   gen_statem:cast(CollectorPid, {sync, AgentId}),
   {noreply, State}.
-
-  %io:format("ETS ~p~n############", [ets:tab2list(ETS)]),
-  %ets:insert(State#agent_state.ets, NN_REC),
-
 
 
 handle_info(_Info, State = #agent_state{}) ->
@@ -63,27 +60,3 @@ code_change(_OldVsn, State = #agent_state{}, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-
-
-
-
-
-%%handle_cast({computeNN, Gene}, State = #nn_agent_state{nnId = NNid, populationMgmt = MgmtProc, mutId=MutId, ets=ETS}) ->
-%%  %TODO Mutate the gene
-%%  spawn(fun(MgmtProc, ETS, NNid, MutId) -> simulateNN(Gene,MgmtProc, ETS, NNid, MutId) end),
-%%  {noreply, State}.
-%%
-%%
-%%simulateNN(Gene, MgmtProc, ETS, NNid, MutId) ->
-%%  {NNId, {score, Score}, {processesInfo, ProcessesInfo}} = exoself:map(NNid, ETS, NNid, MutId),
-%%  MgmtProc ! {NNId, {score, Score}, {processesInfo, ProcessesInfo}}.
-
-% -record(genotype, {nn_id, scoring_list, processes_info}).
-
-%	NN_Entry = case ets:member(ETS, NNid) of
-%							true -> ets:lookup(ETS, NNid);
-%							false-> E =  #nn_rec{nn_id = NNid, score=0, processes_info = []},
-%								ets:insert(ETS,E) , E
-%						 end,
-%	ProcessesInfo = lists:append(NN_Entry#nn_rec.processes_info, {list_to_atom("MutId_" ++ integer_to_list(MutId)), Processes_Count}),
-%
