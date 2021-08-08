@@ -61,7 +61,7 @@ init([Layers,Max_Mutation_iterations,Simulation_steps,NN_amount, IsMaster]) ->
   %TODO Write configuration to DB SIM_STEPS...
   Rabbit_pos= exoself:generateRabbitPatrol(),
   Track = #track{?MASTER_NODE = {?MASTER_NODE,maps:new()}, ?NODE1 = {?NODE1,maps:new()},?NODE2 = {?NODE2,maps:new()},?NODE3 = {?NODE3,maps:new()}},
-  NNPerNode = NN_amount/?NODE_AMOUNT,
+  NNPerNode = round(math:floor(NN_amount/?NODE_AMOUNT)),
 
   State = #state{nn_amount = NN_amount, mutate_iteration=1, max_mutate_iteration = Max_Mutation_iterations,
     rabbit_pos = Rabbit_pos, track=Track, prev_nodes = monitorNodes(), prev_best_gene = [], nnPerNode = NNPerNode},
@@ -133,7 +133,9 @@ handle_info(_Info, State) ->
                  handleIteration(State, Active_Nodes, Mutate_iteration);
                false ->
                  % Update the work per node equally
-                 Updated_State = State#state{prev_nodes = Active_Nodes, nnPerNode = NN_Amount/length(Active_Nodes)},
+                 Updated_State = State#state{prev_nodes = Active_Nodes,
+                   nnPerNode = round(math:floor(NN_Amount/length(Active_Nodes)))},
+
                  restartIteration(Updated_State,Mutate_iteration, Active_Nodes),
                  handleIteration(Updated_State, Active_Nodes, Mutate_iteration)
 
