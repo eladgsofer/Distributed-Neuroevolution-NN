@@ -14,9 +14,13 @@ gen(ExoSelf_PId,Node)->
 	spawn(Node,?MODULE,loop,[ExoSelf_PId]).
 
 loop(ExoSelf_PId) ->
-	receive 
+	receive
 		{ExoSelf_PId,{Id,Cx_PId,AF,Input_PIdPs,Output_PIds}} ->
-			loop(Id,Cx_PId,AF,{Input_PIdPs,Input_PIdPs},Output_PIds,0)
+			if
+				(length(Input_PIdPs)==1 andalso is_number(hd(Input_PIdPs))) ->
+					io:format("BAD Neuron STARTED:Id: ~p Pid: ~p~n", [Id, self()]);
+				true -> ok
+			end, loop(Id,Cx_PId,AF,{Input_PIdPs,Input_PIdPs},Output_PIds,0)
 	end.
 %When gen/2 is executed it spawns the neuron element and immediately begins to wait for its initial state message.
 

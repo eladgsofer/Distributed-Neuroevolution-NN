@@ -22,9 +22,10 @@
   handle_info/2,
   terminate/2,
   code_change/3,display/2]).
+-compile(export_all).
 
 -define(SERVER, ?MODULE).
--define(MASTER_NODE, 'king@Tom-VirtualBox').
+-define(MASTER_NODE, 'king@pds-MacBook-Pro').
 -define(NODE1, none1).
 -define(NODE2, none2).
 -define(NODE3, none3).
@@ -61,7 +62,7 @@ init([Layers,Max_Mutation_iterations,Simulation_steps,NN_amount, IsMaster]) ->
   %TODO Write configuration to DB SIM_STEPS...
   Rabbit_pos= exoself:generateRabbitPatrol(),
   Track = #track{?MASTER_NODE = {?MASTER_NODE,maps:new()}, ?NODE1 = {?NODE1,maps:new()},?NODE2 = {?NODE2,maps:new()},?NODE3 = {?NODE3,maps:new()}},
-  NNPerNode = round(math:floor(NN_amount/?NODE_AMOUNT)),
+  NNPerNode = round(math:floor(NN_amount/length(monitorNodes()))),
 
   State = #state{nn_amount = NN_amount, mutate_iteration=1, max_mutate_iteration = Max_Mutation_iterations,
     rabbit_pos = Rabbit_pos, track=Track, prev_nodes = monitorNodes(), prev_best_gene = [], nnPerNode = NNPerNode},
@@ -69,22 +70,28 @@ init([Layers,Max_Mutation_iterations,Simulation_steps,NN_amount, IsMaster]) ->
   case IsMaster of
     true->
       ActiveNodes = monitorNodes(),
+      Slaves = [N||N<-ActiveNodes, N=/=node()],
       db:init(ActiveNodes),
+      % Trigger Slaves
+      lists:foreach(fun(N)-> {N, utills:generateServerId(N, ?MODULE)} ! startSlave end, Slaves),
+
       graphic:start(),
       startPopulationFSM(self(), NNPerNode, Layers, ?SIM_ITERATIONS),
-      %lists:foreach(fun(N)-> {N, utills:generateServerId(N, ?MODULE)} ! startSlave end, ActiveNodes),
+
+
       {ok, TimerRef} = timer:send_interval(?TIMER_INTERVAL, self(), check_genotyps),
       {ok, State#state{timer_ref=TimerRef}};
 
     false ->
+      io:format("Waiting for master..."),
+      receive
+        {?MASTER_NODE, startSlave} -> ok
+      end,
       mnesia:start(),
       MasterId = {?MASTER_NODE, king},
       startPopulationFSM(MasterId, NNPerNode, Layers, ?SIM_ITERATIONS),
       {ok, State}
-%%      io:format("Waiting for master..."),
-%%      receive
-%%        {?MASTER_NODE, startSlave} -> ok
-%%      end
+
   end.
 
 
