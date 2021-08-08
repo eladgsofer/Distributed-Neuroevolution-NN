@@ -102,9 +102,10 @@ calc_state(cast, {runNetwork, BestGenesIds, MutIter}, #pop_state{agentsIds = Age
                  lists:foreach(fun(C)->supervisor:delete_child(StateData#pop_state.agentsMgmt, C) end, PassiveAgentsIds),
 
                  %TODO make sure that NNIds, is ordered? potential bug keysort via key 2
-                 StateData#pop_state{agentsMapper = createAgentsMapper(ActiveAgentsIds), agentsIds=ActiveAgentsIds, nnIds =lists:sublist(NNIds, 1, GLen)};
+                 StateData#pop_state{agentsMapper = createAgentsMapper(ActiveAgentsIds), agentsIds=ActiveAgentsIds,
+                   nn_amount = GLen, nnIds =lists:sublist(NNIds, 1, GLen)};
 
-               ALen<GLen ->
+               ALen < GLen ->
                  NewAgentsCnt = GLen - ALen,
                  {NewNNIds, NewAgentsIds} = utills:generateNNIds(ALen + 1, NewAgentsCnt), %Tuple of {NNIds, AgentsIds}
                  ActiveAgentsIds = lists:sort(StateData#pop_state.agentsIds ++ NewAgentsIds),
@@ -114,7 +115,7 @@ calc_state(cast, {runNetwork, BestGenesIds, MutIter}, #pop_state{agentsIds = Age
                  NewAgentsSpecs = agents_mgmt:generateChildrensSpecs(NewNNIds, NewAgentsIds,CollectorPid), % CollectorPid?
                  lists:foreach(fun(ChildSpec)->supervisor:start_child(StateData#pop_state.agentsMgmt, ChildSpec) end, NewAgentsSpecs),
 
-                 StateData#pop_state{agentsIds=ActiveAgentsIds, agentsMapper = createAgentsMapper(ActiveAgentsIds), nnIds =NNIds ++ NewNNIds}
+                 StateData#pop_state{agentsIds=ActiveAgentsIds, nn_amount = GLen, agentsMapper = createAgentsMapper(ActiveAgentsIds), nnIds =NNIds ++ NewNNIds}
              end,
 
   io:format("CALC STATE - EXECUTING AGENTS:~n"),
