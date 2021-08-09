@@ -43,7 +43,7 @@ init([]) ->
   ets:new(stats,[set,public,named_table]),
   ets:insert(stats,[{process, 0},{neurons, 0},{fitness, 0}, {distance, 10}]),
   WxServer = wx:new(),
-  Frame = wxFrame:new(WxServer, ?wxID_ANY, "Neuroevolution Neural Network", [{size,{1280, 720}}]),
+  Frame = wxFrame:new(WxServer, ?wxID_ANY, "Neuroevolution Neural Network", [{size,{1920, 1080}}]),
   Panel  = wxPanel:new(Frame),
   wxFrame:createStatusBar(Frame),
   wxFrame:show(Frame),

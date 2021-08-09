@@ -11,5 +11,5 @@
 -record(cortex, {id, sensor_ids, actuator_ids, nids}).
 -record(genotype, {nn_id, score, processes_info}).
 -record(db, {nn_id, mutId, gene, processes_count, score}).
--define(SIM_ITERATIONS, 22).
--define(HUNTER_INIT_LOC, [3,3]).
+-define(SIM_ITERATIONS, 62).
+-define(HUNTER_INIT_LOC, [1,40]).

@@ -125,7 +125,7 @@ link_Cortex(Cx,IdsNPIds) ->
 	NPIds = [ets:lookup_element(IdsNPIds,NId,2) || NId <- NIds],
 
 
-	Cx_PId ! {self(),{Cx_Id,SPIds,APIds,NPIds}, ?SIM_ITERATIONS-2}. %TODO STEPS
+	Cx_PId ! {self(),{Cx_Id,SPIds,APIds,NPIds}, ?SIM_ITERATIONS -2 }. %TODO STEPS
 %The cortex is initialized to its proper state just as other elements. Because we have not yet implemented a learning algorithm for our NN system, we need to specify when the NN should shutdown. We do this by specifying the total number of cycles the NN should execute before terminating, which is 1000 in this case.
 
 update_genotype(IdsNPIds,Genotype,[{N_Id,PIdPs}|WeightPs])->
