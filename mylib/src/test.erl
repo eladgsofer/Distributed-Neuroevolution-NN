@@ -15,7 +15,7 @@ master()->
   Layers=[4,8,5],
   Max_Mutation_iterations=10,
   Simulation_steps=5000,
-  NN_amount=20,
+  NN_amount=100, % A NUMBER WHICH DIVIDES BY NUMBER OF NODES
   %{NNids, AgentsIds} = master_server:generate_seeds(NN_amount,Layers),
   %io:format("NNid:~p~n", [NNids]),
   %io:format("NNid:~p~n", [AgentsIds]),
@@ -27,7 +27,7 @@ slave()->
   Layers=[4,8,5],
   Max_Mutation_iterations=10,
   Simulation_steps=5000,
-  NN_amount=20,
+  NN_amount=100, % A NUMBER WHICH DIVIDES BY NUMBER OF NODES
   %{NNids, AgentsIds} = master_server:generate_seeds(NN_amount,Layers),
   %io:format("NNid:~p~n", [NNids]),
   %io:format("NNid:~p~n", [AgentsIds]),
