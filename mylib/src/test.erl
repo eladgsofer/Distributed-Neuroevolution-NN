@@ -14,7 +14,7 @@ test()-> db:init(),
   Layers=[4,8,5],
   Max_Mutation_iterations=10,
   Simulation_steps=5000,
-  NN_amount=1000,
+  NN_amount=10,
   %{NNids, AgentsIds} = master_server:generate_seeds(NN_amount,Layers),
   %io:format("NNid:~p~n", [NNids]),
   %io:format("NNid:~p~n", [AgentsIds]),
@@ -178,12 +178,17 @@ test_supervisor(NN_Amount)->
 
 generateServerId()-> list_to_atom(atom_to_list(node()) ++ "_" ++ atom_to_list(?MODULE)).
 
-tom()->  G = constructor:construct_Genotype(nn1,rng,pts, [4,3]),  mu(G,1).
+tom()->  G = constructor:construct_Genotype(nn1,rng,pts, [4,5,8,6,7]),
+  MutatedGene = mu(G,1000),
+  io:format("Finish Mutate:~p~n",[MutatedGene]),
+  exoself:map(nn1,MutatedGene).
 
 mu(G,0)->G;
 mu(G,Cnt)->mu(mutate:mutate(G),Cnt-1).
 
-gen()-> G = constructor:construct_Genotype(nn1,rng,pts, [4,3]).
+gen()-> constructor:construct_Genotype(nn1,rng,pts, [4,3]).
+
+
 
 
 
