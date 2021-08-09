@@ -43,8 +43,10 @@ handle_cast({executeIteration, MutId, Gene}, State = #agent_state{nnId=NNid, col
 
   {Score, ProcessesCount, _} = exoself:map(FileName, MutatedGene),
   io:format("NNid:~p|Score:~p|Processes Count:~p~n",[AgentId, Score, ProcessesCount]),
-  db:write(NNid,MutId,MutatedGene,ProcessesCount, Score),
-  gen_statem:cast(CollectorPid, {sync, AgentId}),
+  database:write(NNid,MutId,MutatedGene,ProcessesCount, Score),
+  %io:format("CollectorPid:~p~n", [CollectorPid]),
+  %io:format("##########################"),
+  gen_statem:cast({global,CollectorPid}, {sync, AgentId}),
   {noreply, State}.
 
 

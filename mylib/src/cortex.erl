@@ -14,7 +14,7 @@ gen(PhenoTypePid,Node)-> spawn(Node,?MODULE,loop,[PhenoTypePid]).
 
 loop(ExoSelf_PId) ->
 	receive
-		{ExoSelf_PId,{Id,SPIds,APIds,NPIds},TotSteps} ->
+		{ExoSelf_PId,{Id,SPIds,APIds,NPIds}, TotSteps} ->
 			put(start_time,now()),
 			Init_loc=?HUNTER_INIT_LOC,
 			[RabbitFLoc|_] = exoself:generateRabbitPatrol(),
@@ -27,8 +27,8 @@ loop(ExoSelf_PId) ->
 % Terminating the network when simulation is over - backing up the current status
 loop(Id,ExoSelf_PId,SPIds,{_APIds,MAPIds},NPIds,0, {HunterLoc, DistanceAcc, SimulationStepsAcc}) ->
 	TimeDif = timer:now_diff(now(),get(start_time)),
-	io:format("Cortex:~p is backing up and terminating.~n",[Id]),
-	io:format("Operational time:~p~n",[TimeDif]),
+	%io:format("Cortex:~p is backing up and terminating.~n",[Id]),
+	%io:format("Operational time:~p~n",[TimeDif]),
 	Neuron_IdsNWeights = get_backup(NPIds,[]),
 	Fitness_Score = math:sqrt(DistanceAcc), % Euclead Norm
 	SimStepsVec = lists:reverse(SimulationStepsAcc),
@@ -69,6 +69,7 @@ calcDistance(Step, HunterLoc)->
 	% Calc The rabbit coordinates
 	%TODO extract from --records..
 	RabbitVec = lists:seq(1,?SIM_ITERATIONS),
+
 	RabbitLoc = lists:nth(Actual_Step, RabbitVec),
 	[R_X, R_Y, H_X, H_Y] = [RabbitLoc, RabbitLoc] ++ HunterLoc,
 	

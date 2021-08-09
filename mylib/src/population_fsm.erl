@@ -33,7 +33,7 @@
 %% function does not return until Module:init/1 has returned.
 start_link(NN_Amount, Sim_Steps, MasterPid, EnvParams) ->
   ServerId = utills:generateServerId(?MODULE),
-  gen_statem:start_link({local, ServerId}, ?MODULE, {NN_Amount, Sim_Steps, ServerId, MasterPid, EnvParams}, []).
+  gen_statem:start_link({global, ServerId}, ?MODULE, {NN_Amount, Sim_Steps, ServerId, MasterPid, EnvParams}, []).
 
 %%%===================================================================
 %%% gen_statem callbacks
@@ -88,7 +88,9 @@ format_status(_Opt, [_PDict, _StateName, _State]) -> Status = some_term, Status.
 calc_state(cast, {runNetwork, BestGenesIds, MutIter}, #pop_state{agentsIds = AgentsIds, nnIds = NNIds} =  StateData) ->
   io:format("Calc state Recevied: ~p~n", [{runNetwork, BestGenesIds, MutIter}]),
 
-  Genes = db:select_best_genes(BestGenesIds), ALen = length(AgentsIds), GLen = length(Genes),
+  Genes = database:select_best_genes(BestGenesIds), ALen = length(AgentsIds), GLen = length(Genes),
+  %io:format("BEST GENES: ~p~n", [Genes]),
+
   NewState = if
                ALen==GLen ->
                  StateData;
