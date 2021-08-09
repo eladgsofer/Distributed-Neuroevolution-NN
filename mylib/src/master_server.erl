@@ -13,8 +13,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/5, generateSeeds/2]).
-
+-export([start_link/5, generateSeeds/2, start_slave/4, start_king/4]).
 %% gen_server callbacks
 -export([init/1,
   handle_call/3,
@@ -24,20 +23,22 @@
   code_change/3,display/2]).
 -compile(export_all).
 
+
 -define(SERVER, ?MODULE).
 
--define(TOM, 'master@Tom-VirtualBox').
+-define(TOM, 'king@Tom-VirtualBox').
+
 -define(ELAD, 'king@pds-MacBook-Pro').
 
 -define(MASTER_NODE, ?ELAD).
 
--define(NODE1, none1).
--define(NODE2, none2).
--define(NODE3, none3).
+-define(NODE1, 'node1@pds-MacBook-Pro').
+-define(NODE2, 'node2@pds-MacBook-Pro').
+-define(NODE3, 'node3@pds-MacBook-Pro').
 -define(NODE_AMOUNT, 4).
 -define(TIMER_INTERVAL, 1000).
 
--record(state, {nn_amount,nnPerNode,mutate_iteration,max_mutate_iteration,rabbit_pos, track,prev_nodes, timer_ref,prev_best_gene}).
+-record(state, {nn_amount,nnPerNode,mutate_iteration,max_mutate_iteration,rabbit_pos, track,prev_nodes, timer_ref, parentGenes}).
 -record(track,{?MASTER_NODE,?NODE1,?NODE2,?NODE3}).
 
 %%%===================================================================
@@ -51,6 +52,13 @@
 %% @end
 %%-----------------
 %% ---------------------------------------------------
+
+start_king(Layers,Max_Mutation_iterations,Simulation_steps,NN_amount)->
+  start_link(Layers,Max_Mutation_iterations,Simulation_steps,NN_amount,true).
+
+start_slave(Layers,Max_Mutation_iterations,Simulation_steps,NN_amount)->
+  start_link(Layers,Max_Mutation_iterations,Simulation_steps,NN_amount,false).
+
 start_link(Layers,Max_Mutation_iterations,Simulation_steps,NN_amount,IsMaster) ->
   ServerId =
     case IsMaster of
@@ -58,46 +66,56 @@ start_link(Layers,Max_Mutation_iterations,Simulation_steps,NN_amount,IsMaster) -
       false-> utills:generateServerId(?MODULE)
     end,
 
-  gen_server:start_link({global, ServerId}, ?MODULE, [Layers,Max_Mutation_iterations,Simulation_steps,NN_amount,IsMaster],[]).
+  gen_server:start_link({global, ServerId}, ?MODULE, [Layers,Max_Mutation_iterations,Simulation_steps,NN_amount,IsMaster, ServerId], []).
 
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
-init([Layers,Max_Mutation_iterations,Simulation_steps,NN_amount, IsMaster]) ->
+init([Layers,Max_Mutation_iterations,Simulation_steps,NN_amount, IsMaster, ServerId]) ->
+  register(ServerId, self()), %TODO check if register global and how?
+
   %TODO Write configuration to DB SIM_STEPS...
   Rabbit_pos= exoself:generateRabbitPatrol(),
   Track = #track{?MASTER_NODE = {?MASTER_NODE,maps:new()}, ?NODE1 = {?NODE1,maps:new()},?NODE2 = {?NODE2,maps:new()},?NODE3 = {?NODE3,maps:new()}},
-  NNPerNode = round(math:floor(NN_amount/length(monitorNodes()))),
 
   State = #state{nn_amount = NN_amount, mutate_iteration=1, max_mutate_iteration = Max_Mutation_iterations,
-    rabbit_pos = Rabbit_pos, track=Track, prev_nodes = monitorNodes(), prev_best_gene = [], nnPerNode = NNPerNode},
-
-  case IsMaster of
+    rabbit_pos = Rabbit_pos, track=Track, prev_nodes = findActiveNodes(), parentGenes = []},
+  io:format("Registered P:~p~n", [registered()]),
+  NewState =
+    case IsMaster of
     true->
-      ActiveNodes = monitorNodes(),
-      Slaves = [N||N<-ActiveNodes, N=/=node()],
+      ActiveNodes = findActiveNodes(),
+      ActiveSlaves = findSlaves(),
+
+      mnesia:create_schema(ActiveNodes),
+      mnesia:start(),
+
+      % Trigger Slaves - They start the Mnesia
+
+      lists:foreach(fun(Sl_Node)-> Dest = {utills:generateServerId(Sl_Node, ?MODULE), Sl_Node}, io:format("Dest~p", [Dest]) , Dest ! {king, startSlave} end, ActiveSlaves),
+
+      NNPerNode = round(math:floor(NN_amount/length(findActiveNodes()))),
+
       db:init(ActiveNodes),
-      % Trigger Slaves
-      lists:foreach(fun(N)-> {N, utills:generateServerId(N, ?MODULE)} ! startSlave end, Slaves),
-
-      graphic:start(),
+      
       startPopulationFSM(self(), NNPerNode, Layers, ?SIM_ITERATIONS),
-
+      %graphic:start(),
 
       {ok, TimerRef} = timer:send_interval(?TIMER_INTERVAL, self(), check_genotyps),
-      {ok, State#state{timer_ref=TimerRef}};
+      {ok, State#state{timer_ref=TimerRef, nnPerNode = NNPerNode}};
 
     false ->
-      io:format("Waiting for master..."),
+      io:format("Waiting for master...~n"),
       receive
-        {?MASTER_NODE, startSlave} -> ok
+        {king, startSlave} -> mnesia:start()
       end,
-      mnesia:start(),
-      MasterId = {?MASTER_NODE, king},
-      startPopulationFSM(MasterId, NNPerNode, Layers, ?SIM_ITERATIONS),
-      {ok, State}
 
-  end.
+      NNPerNode = round(math:floor(NN_amount/length(findActiveNodes()))),
+      MasterId = {king, ?MASTER_NODE},
+      io:format("STARTING POPULATION~n"),
+      startPopulationFSM(MasterId, NNPerNode, Layers, ?SIM_ITERATIONS),
+      {ok, State#state{nnPerNode = NNPerNode}}
+  end, NewState.
 
 
 startPopulationFSM(MasterId, NNPerNode,Layers, Simulation_steps)->
@@ -110,9 +128,10 @@ handle_call(_Request, _From, State) ->
 
 
 handle_cast({ok, Node, NNids},State)->
+  io:format("Population IS UP ~p", [Node]),
   Servername = utills:generateServerId(Node,population_fsm),
   Seeds = [{NNid,0}||NNid<-NNids],
-  gen_statem:cast(Servername, {runNetwork, Seeds, 1}),
+  gen_statem:cast({global, Servername}, {runNetwork, Seeds, 1}),
   {noreply, State};
 
 handle_cast({Node, done, Mutation_iterations}, State) ->
@@ -138,7 +157,7 @@ handle_cast({Node, done, Mutation_iterations}, State) ->
 handle_info(_Info, State) ->
   Mutate_iteration = State#state.mutate_iteration,
   NN_Amount = State#state.nn_amount,
-  Active_Nodes= monitorNodes(),
+  Active_Nodes= findActiveNodes(),
   %CHANGE NUMBER OF NN_AMOUNT FOR EACH NODE
   NewState = case Active_Nodes==State#state.prev_nodes of
                true->
@@ -198,7 +217,7 @@ handleIteration(State,Active_Nodes,Mutate_iteration) ->
 
           {ok,Path} = gen_server:call(Agent,{run_simulation,Best_Genotype}),
           io:format("hunter path:~p~n", [Path]),
-          display(Path,Statistics),
+          %display(Path,Statistics),
 
           io:format("TIMER_REF~p~n", [State#state.timer_ref]),
           %turnOffTimer(State#state.timer_ref),
@@ -212,12 +231,12 @@ handleIteration(State,Active_Nodes,Mutate_iteration) ->
 
 triggerCalcState(Mutation_iterations,Active_Nodes,Updated_State)-> %%mnesia:force_load_table(db),
   {atomic,List} = db:read_all_mutateIter(Mutation_iterations),
-  Filtered = [{Score,{NNid,MutatIter}} || {db,NNid,MutatIter,_,_,Score} <-List],
-  Sortd_by_score = lists:keysort(1,Filtered ++ Updated_State#state.prev_best_gene),
+  OffspringGenes = [{Score,{NNid,MutatIter}} || {db,NNid,MutatIter,_,_,Score} <-List],
+  Sortd_by_score = lists:keysort(1, OffspringGenes ++ Updated_State#state.parentGenes),
   io:format("Sortd_by_score:~p~n", [Sortd_by_score]),
   BestGenotypes = lists:sublist(Sortd_by_score, Updated_State#state.nnPerNode), %TODO CHECK THIS
   io:format("Best_Genotype:~p~n", [hd(BestGenotypes)]),
-  U_S = Updated_State#state{prev_best_gene = BestGenotypes},
+  U_S = Updated_State#state{parentGenes = BestGenotypes},
   %io:format("Updated prev_best_gene:~p~n", [U_S#state.prev_best_gene]),
   %io:format("Bests_genotyps:~p~n", [Bests_genotyps]),
   broadcastGenes(BestGenotypes,Active_Nodes,U_S), U_S.
@@ -225,15 +244,17 @@ triggerCalcState(Mutation_iterations,Active_Nodes,Updated_State)-> %%mnesia:forc
 broadcastGenes(BestGenotypes,Active_Nodes,Updated_State)->
   ChosenGenes = [{NNid,MutatIter}||{_,{NNid,MutatIter}} <-BestGenotypes],
   io:format("ChosenGenes:~p~n", [ChosenGenes]),
+
   % PopAddresses = [{Node, utills:generateServerId(Node, population_fsm)}||Node<-Active_Nodes],
   PopAddresses = [utills:generateServerId(Node, population_fsm)||Node<-Active_Nodes],   %TODO VIEW HOW TO CAST TO A REMOTE NODE
-  TriggerCalc = fun(PopAddr)-> gen_server:cast(PopAddr, {runNetwork, ChosenGenes, Updated_State#state.mutate_iteration}) end,
+  io:format("Population Addresses~p~n", [PopAddresses]),
+  TriggerCalc = fun(PopAddr)-> gen_server:cast({global, PopAddr}, {runNetwork, ChosenGenes, Updated_State#state.mutate_iteration}) end,
   lists:foreach(TriggerCalc, PopAddresses).
 
 chooseBest(Mutation_iterations,State)->%%mnesia:force_load_table(db),
   {atomic,List} = db:read_all_mutateIter(Mutation_iterations),
   Filtered = [{Score,{NNid,MutatIter}}||{db,NNid,MutatIter,_,_,Score} <-List],
-  Sortd_by_score = lists:keysort(1,Filtered++State#state.prev_best_gene),
+  Sortd_by_score = lists:keysort(1,Filtered++State#state.parentGenes),
   {_,{NNid,MutatIter}}=hd(Sortd_by_score),
   {atomic,Best_Net} = db:get({NNid,MutatIter}),
   {db,_,_,Genotype,Processes_cnt,Score_db}=hd(Best_Net),
@@ -256,10 +277,13 @@ generateSeeds(NN_amount,Layers)-> % Initialize State
   db:write_records(Seeds),Env_Params.
 
 
-monitorNodes()->
+findActiveNodes()->
   NodeList = [?MASTER_NODE, ?NODE1, ?NODE2, ?NODE3],
   [Node || Node<- NodeList, net_adm:ping(Node)==pong].
 
+findSlaves()->
+  NodeList = [?NODE1, ?NODE2, ?NODE3],
+  [Node || Node<- NodeList, net_adm:ping(Node)==pong].
 
 restartIteration(State, MutIter, ActiveNodes)->
   db:delete_all_mutateIter(MutIter),
