@@ -10,18 +10,31 @@
 -compile(export_all).
 %Layers,Max_Mutation_iterations,Simulation_steps,NN_amount,Rabbit_pos,Nodes
 
-test()-> db:init(),
+master()->
+
   Layers=[4,8,5],
   Max_Mutation_iterations=10,
   Simulation_steps=5000,
-  NN_amount=10,
+  NN_amount=20,
   %{NNids, AgentsIds} = master_server:generate_seeds(NN_amount,Layers),
   %io:format("NNid:~p~n", [NNids]),
   %io:format("NNid:~p~n", [AgentsIds]),
   %population_fsm:start_link(NN_amount, Simulation_steps, self(), {NNids, AgentsIds}).
  %start_link(Layers,Max_Mutation_iterations,Simulation_steps,NN_amount,IsMaster) -> %Nods={node1,node2,node3}
-  master_server:start_link(Layers,Max_Mutation_iterations,Simulation_steps,NN_amount,true).
+  master_server:start_king(Layers,Max_Mutation_iterations,Simulation_steps,NN_amount).
 
+slave()->
+  Layers=[4,8,5],
+  Max_Mutation_iterations=10,
+  Simulation_steps=5000,
+  NN_amount=20,
+  %{NNids, AgentsIds} = master_server:generate_seeds(NN_amount,Layers),
+  %io:format("NNid:~p~n", [NNids]),
+  %io:format("NNid:~p~n", [AgentsIds]),
+  %population_fsm:start_link(NN_amount, Simulation_steps, self(), {NNids, AgentsIds}).
+  %start_link(Layers,Max_Mutation_iterations,Simulation_steps,NN_amount,IsMaster) -> %Nods={node1,node2,node3}
+
+  master_server:start_slave(Layers,Max_Mutation_iterations,Simulation_steps,NN_amount).
 
 test1() ->
   ETS = ets:new(tab, [set]),
