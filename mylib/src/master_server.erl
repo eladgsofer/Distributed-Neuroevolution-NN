@@ -34,7 +34,7 @@
 
 -define(NODE1, 'node1@132.72.104.125').
 -define(NODE2, 'node2@132.72.104.171').
--define(NODE3, 'node3@Tom-VirtualBox').
+-define(NODE3, 'node3@132.72.104.248').
 -define(TIMER_INTERVAL, 1000).
 
 -record(state, {nn_amount,nnPerNode,mutate_iteration,max_mutate_iteration,rabbit_pos, track,prev_nodes, timer_ref, parentGenes}).
