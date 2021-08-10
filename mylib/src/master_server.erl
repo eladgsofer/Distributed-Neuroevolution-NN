@@ -32,7 +32,7 @@
 
 -define(MASTER_NODE, 'king@132.72.104.105').
 
--define(NODE1, 'node1@132.72.104.105').
+-define(NODE1, 'node1@132.72.104.125').
 -define(NODE2, 'node2@Tom-VirtualBox').
 -define(NODE3, 'node3@Tom-VirtualBox').
 -define(TIMER_INTERVAL, 1000).
