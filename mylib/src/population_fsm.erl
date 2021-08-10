@@ -16,7 +16,7 @@
 
 %% gen_statem callbacks
 -export([init/1,fitting_state/3, format_status/2, calc_state/3, terminate/3, callback_mode/0]).
--record(pop_state, {agentsMapper, genes, ets, simSteps, serverId, mutIter,nn_amount, masterPid, agentsIds, nnIds, agentsMgmt}).
+-record(pop_state, {agentsMapper, simSteps, serverId, mutIter, nn_amount, masterPid, agentsIds, nnIds, agentsMgmt}).
 
 -define(SERVER, ?MODULE).
 
@@ -50,7 +50,7 @@ init({NN_Amount, Sim_Steps, ServerId, MasterPid, EnvParams}) ->
   AgentsMapper = createAgentsMapper(AgentsIds),
   CollectorPid = ServerId,
   % Start the agents supervisor
-  AgentsMgmt = agents_mgmt:start_link(CollectorPid, NNids, AgentsIds),
+  {ok, AgentsMgmt} = agents_mgmt:start_link(CollectorPid, NNids, AgentsIds),
 
   StateData = #pop_state{
     simSteps = Sim_Steps,
@@ -96,11 +96,11 @@ calc_state(cast, {runNetwork, BestGenesIds, MutIter}, #pop_state{agentsIds = Age
                  StateData;
 
                ALen > GLen->
-                 SortedAgents = lists:sort(AgentsIds),
-                 ActiveAgentsIds = lists:sublist(SortedAgents, GLen),
+                 % Assume AgentsIds are sorted
+                 ActiveAgentsIds = lists:sublist(AgentsIds, GLen),
 
                  % Delete the agents which aren't needed
-                 PassiveAgentsIds = lists:sublist(SortedAgents, GLen + 1, length(SortedAgents)),
+                 PassiveAgentsIds = lists:sublist(AgentsIds, GLen + 1, ALen),
                  lists:foreach(fun(C)->supervisor:delete_child(StateData#pop_state.agentsMgmt, C) end, PassiveAgentsIds),
 
                  %TODO make sure that NNIds, is ordered? potential bug keysort via key 2
@@ -108,16 +108,24 @@ calc_state(cast, {runNetwork, BestGenesIds, MutIter}, #pop_state{agentsIds = Age
                    nn_amount = GLen, nnIds =lists:sublist(NNIds, 1, GLen)};
 
                ALen < GLen ->
-                 NewAgentsCnt = GLen - ALen,
-                 {NewNNIds, NewAgentsIds} = utills:generateNNIds(ALen + 1, NewAgentsCnt), %Tuple of {NNIds, AgentsIds}
-                 ActiveAgentsIds = lists:sort(StateData#pop_state.agentsIds ++ NewAgentsIds),
+                 io:format("ALen:~p~n",[ALen]),
+                 io:format("GLen:~p~n",[GLen]),
+
+                 {NewNNIds, NewAgentsIds} = utills:generateNNIds(ALen + 1, GLen), %Tuple of {NNIds, AgentsIds}
+                 io:format("{NewNNIds, NewAgentsIds}:~p~n",[{NewNNIds, NewAgentsIds}]),
+
+                 ActiveAgentsIds = StateData#pop_state.agentsIds ++ NewAgentsIds,
+                 io:format("ActiveAgentsIds:~p~n",[ActiveAgentsIds]),
 
                  % Creating new agents
                  CollectorPid = utills:generateServerId(population_fsm),
                  NewAgentsSpecs = agents_mgmt:generateChildrensSpecs(NewNNIds, NewAgentsIds,CollectorPid), % CollectorPid?
+                 io:format("NewAgentsSpecs:~p~n",[NewAgentsSpecs]),
+                 io:format("agentsMgmt:~p~n", [StateData#pop_state.agentsMgmt]),
                  lists:foreach(fun(ChildSpec)->supervisor:start_child(StateData#pop_state.agentsMgmt, ChildSpec) end, NewAgentsSpecs),
-
-                 StateData#pop_state{agentsIds=ActiveAgentsIds, nn_amount = GLen, agentsMapper = createAgentsMapper(ActiveAgentsIds), nnIds =NNIds ++ NewNNIds}
+                 io:format("Agent STARTED!!!:~n"),
+                 S = StateData#pop_state{agentsIds=ActiveAgentsIds, nn_amount = GLen, agentsMapper = createAgentsMapper(ActiveAgentsIds), nnIds =NNIds ++ NewNNIds},
+                 io:format("################STATE:~p##############~n", [S]), S
              end,
 
   io:format("CALC STATE - EXECUTING AGENTS:~n"),
@@ -134,7 +142,7 @@ fitting_state(cast, {sync, AgentId}, #pop_state{mutIter = MutIter, masterPid = M
   Pred = fun(_,V) -> V =:= false end,
   SyncMapper = maps:filter(Pred,UpdatedMapper),
 
-  io:format("fitting_staet: got sync from ~p current table is~p~n", [AgentId, SyncMapper]),
+  io:format("fitting_staet: got sync from ~p~n", [AgentId]),
   case maps:size(SyncMapper) of
     0 ->
       % prepare an empty mapper

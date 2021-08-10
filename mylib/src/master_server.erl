@@ -20,7 +20,7 @@
   handle_cast/2,
   handle_info/2,
   terminate/2,
-  code_change/3,display/2]).
+  code_change/3]).
 -compile(export_all).
 
 
@@ -160,11 +160,11 @@ handle_info(_Info, State) ->
                  handleIteration(State, Active_Nodes, Mutate_iteration);
                false ->
                  % Update the work per node equally
-                 Updated_State = State#state{prev_nodes = Active_Nodes,
-                   nnPerNode = round(math:floor(NN_Amount/length(Active_Nodes)))},
-
-                 restartIteration(Updated_State,Mutate_iteration, Active_Nodes),
-                 handleIteration(Updated_State, Active_Nodes, Mutate_iteration)
+                 Updated_State_1 = State#state{prev_nodes = Active_Nodes, nnPerNode = round(math:floor(NN_Amount/length(Active_Nodes)))},
+                 io:format("NEW ACTIVE NODES:~p~n", [Active_Nodes]),
+                 io:format("NEW nnPerNode:~p~n", [Updated_State_1#state.nnPerNode]),
+                 Updated_State_2 = restartIteration(Updated_State_1,Mutate_iteration, Active_Nodes),
+                 handleIteration(Updated_State_2, Active_Nodes, Mutate_iteration-1)
 
              end,
 
@@ -196,7 +196,7 @@ handleIteration(State,Active_Nodes,Mutate_iteration) ->
     true-> io:format("handleIteration:~p~n", [Mutate_iteration]),
       case Mutate_iteration==State#state.max_mutate_iteration of
         false->
-          Updated_State = State#state{mutate_iteration= Mutate_iteration+1},
+          Updated_State = State#state{mutate_iteration = Mutate_iteration + 1},
           U_S = triggerCalcState(Mutate_iteration, Active_Nodes, Updated_State), U_S;
         true->
           io:format("Final Iteration:~n"),
@@ -229,9 +229,9 @@ triggerCalcState(Mutation_iterations,Active_Nodes,Updated_State)-> %%mnesia:forc
   {atomic,List} = database:read_all_mutateIter(Mutation_iterations),
   OffspringGenes = [{Score,{NNid,MutatIter}} || {db,NNid,MutatIter,_,_,Score} <-List],
   Sortd_by_score = lists:keysort(1, OffspringGenes ++ Updated_State#state.parentGenes),
-  io:format("Sortd_by_score:~p~n", [Sortd_by_score]),
-  BestGenotypes = lists:sublist(Sortd_by_score, Updated_State#state.nnPerNode), %TODO CHECK THIS
-  %io:format("Best_Genotype:~p~n", [hd(BestGenotypes)]),
+  %io:format("Sortd_by_score:~p~n", [Sortd_by_score]),
+  BestGenotypes = lists:sublist(Sortd_by_score, Updated_State#state.nnPerNode),
+  %io:format("Best_Genotypes_to_brodcast:~p~n", [BestGenotypes]),
   U_S = Updated_State#state{parentGenes = BestGenotypes},
   %io:format("Updated prev_best_gene:~p~n", [U_S#state.prev_best_gene]),
   %io:format("Bests_genotyps:~p~n", [Bests_genotyps]),
@@ -285,7 +285,8 @@ restartIteration(State, MutIter, ActiveNodes)->
   database:delete_all_mutateIter(MutIter),
   io:format("BEFORE:~n~p~n", [State#state.track#track.?MASTER_NODE]),
   Updated_State = removeMutIter(ActiveNodes,MutIter,State),
-  io:format("AFTER:~n~p~n", [Updated_State#state.track#track.?MASTER_NODE]).
+  io:format("AFTER:~n~p~n", [Updated_State#state.track#track.?MASTER_NODE]),
+  Updated_State.
 
 removeMutIter([],_, State) -> State;
 removeMutIter([Node|ActiveNodes],Mutation_iterations, State) ->
