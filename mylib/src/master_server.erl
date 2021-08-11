@@ -87,10 +87,10 @@ init([Layers,Max_Mutation_iterations,Simulation_steps,NN_amount, IsMaster, Serve
       NNPerNode = round(math:floor(NN_amount/length(findActiveNodes()))),
 
       startPopulationFSM(self(), NNPerNode, Layers, ?SIM_ITERATIONS),
-      graphic:start(),
+      %graphic:start(),
 
       {ok, TimerRef} = timer:send_interval(?TIMER_INTERVAL, self(), check_genotyps),
-      {ok, State#state{timer_ref=TimerRef, nnPerNode = NNPerNode}};
+      State#state{timer_ref=TimerRef, nnPerNode = NNPerNode};
 
     false ->
       io:format("Waiting for master...~n"),
@@ -102,8 +102,8 @@ init([Layers,Max_Mutation_iterations,Simulation_steps,NN_amount, IsMaster, Serve
       MasterId = {king, ?MASTER_NODE},
       io:format("STARTING POPULATION~n"),
       startPopulationFSM(MasterId, NNPerNode, Layers, ?SIM_ITERATIONS),
-      {ok, State#state{nnPerNode = NNPerNode}}
-  end, NewState.
+      State#state{nnPerNode = NNPerNode}
+  end, {ok, NewState}.
 
 
 startPopulationFSM(MasterId, NNPerNode,Layers, Simulation_steps)->
@@ -205,8 +205,7 @@ handleIteration(State,Active_Nodes,Mutate_iteration) ->
 
           {ok,Path} = gen_server:call(Agent,{run_simulation,Best_Genotype}),
           io:format("hunter path:~p~n", [Path]),
-          display(Path,Statistics),
-
+          %display(Path,Statistics),
           %io:format("TIMER_REF~p~n", [State#state.timer_ref]),
           %turnOffTimer(State#state.timer_ref),
           %io:format("whoooo~p~n", [State#state.timer_ref]),
@@ -220,6 +219,8 @@ handleIteration(State,Active_Nodes,Mutate_iteration) ->
 triggerCalcState(Mutation_iterations,Active_Nodes,Updated_State)-> %%mnesia:force_load_table(db),
   {atomic,List} = database:read_all_mutateIter(Mutation_iterations),
   OffspringGenes = [{Score,{NNid,MutatIter}} || {db,NNid,MutatIter,_,_,Score} <-List],
+  Process_List =  [Process|| {db,_,_,_,Process,_} <-List],
+  io:format("Processes amount:~p~n", [lists:sum(Process_List)]),
   Sortd_by_score = lists:keysort(1, OffspringGenes ++ Updated_State#state.parentGenes),
   %io:format("Sortd_by_score:~p~n", [Sortd_by_score]),
   BestGenotypes = lists:sublist(Sortd_by_score, Updated_State#state.nnPerNode),
@@ -250,7 +251,7 @@ chooseBest(Mutation_iterations,State)->%%mnesia:force_load_table(db),
 
 display([],_)-> turnOffTimer;
 display([[R_X,R_Y,H_X,H_Y]|Path],Statistics)->
-  graphic:update_location({R_X*20,R_Y*20},{H_X*20,H_Y*20},Statistics),
+  graphic:update_location({R_X*20,R_Y*20},{H_X*20,H_Y*20}),
   timer:sleep(500),
   io:format("CurrentPath~p~n", [Path]),
   display(Path,Statistics).
