@@ -228,13 +228,18 @@ handleIteration(State,Active_Nodes,Mutate_iteration) ->
 triggerCalcState(Mutation_iterations,Active_Nodes,Updated_State)-> %%mnesia:force_load_table(db),
   {atomic,List} = database:read_all_mutateIter(Mutation_iterations),
   OffspringGenes = [{Score,{NNid,MutatIter}} || {db,NNid,MutatIter,_,_,Score} <-List],
+  Process_List =  [Process|| {db,_,_,_,Process,_} <-List],
+  Gene_List =  [Gene|| {db,_,_,Gene,_,_} <-List],
   Sortd_by_score = lists:keysort(1, OffspringGenes ++ Updated_State#state.parentGenes),
-  %io:format("Sortd_by_score:~p~n", [Sortd_by_score]),
   BestGenotypes = lists:sublist(Sortd_by_score, Updated_State#state.nnPerNode),
-  %io:format("Best_Genotypes_to_brodcast:~p~n", [BestGenotypes]),
   U_S = Updated_State#state{parentGenes = BestGenotypes},
-  %io:format("Updated prev_best_gene:~p~n", [U_S#state.prev_best_gene]),
-  %io:format("Bests_genotyps:~p~n", [Bests_genotyps]),
+  {BestScore,{BestNNid,_}} = hd(BestGenotypes),
+  Short_Active_Nodes = [tl(hd(string:split(erl_types:atom_to_string(Node),"@")))||Node<-Active_Nodes],
+  Statistics = [{process, lists:sum(Process_List)*length(Active_Nodes)},{neurons, neurons_amount(Gene_List,0)},
+    {bestGeneScore, BestScore}, {gene_died, length(Sortd_by_score)-length(BestGenotypes)},{genration,Mutation_iterations},
+    {active,Short_Active_Nodes}, {workload,length(OffspringGenes)/length(Active_Nodes)},{bestGeneID,BestNNid}],
+  graphic:update_stat(Statistics),
+
   broadcastGenes(BestGenotypes,Active_Nodes,U_S), U_S.
 
 broadcastGenes(BestGenotypes,Active_Nodes,Updated_State)->
@@ -258,7 +263,7 @@ chooseBest(Mutation_iterations,State)->%%mnesia:force_load_table(db),
 
 display([],_)-> turnOffTimer;
 display([[R_X,R_Y,H_X,H_Y]|Path],Statistics)->
-  graphic:update_location({R_X*20,R_Y*20},{H_X*20,H_Y*20},Statistics),
+  graphic:update_location({R_X*20,R_Y*20},{H_X*20,H_Y*20}),
   timer:sleep(500),
   io:format("CurrentPath~p~n", [Path]),
   display(Path,Statistics).
@@ -313,3 +318,6 @@ collectMnesiaStartMsgs([S|Slaves])->
   receive
     {S, mnesiaStarted} -> collectMnesiaStartMsgs(Slaves)
   end.
+
+neurons_amount([],Acc)->Acc;
+neurons_amount([Gene|Genes],Acc)-> Curr=hd(Gene),neurons_amount(Genes,Acc+length(Curr#cortex.nids)).
