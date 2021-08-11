@@ -9,6 +9,7 @@
 -compile(export_all).
 
 -include("records.hrl").
+-include("config.hrl").
 
 
 map()-> map(ffnn).

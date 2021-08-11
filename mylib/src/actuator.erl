@@ -9,6 +9,7 @@
 -compile(export_all).
 -compile([debug_info]).
 -include("records.hrl").
+-include("config.hrl").
 
 gen(ExoSelf_PId,Node, FirstHunterLoc)->
 	spawn(Node,?MODULE,loop,[ExoSelf_PId, FirstHunterLoc]).

@@ -23,18 +23,11 @@
   code_change/3]).
 -compile(export_all).
 
+-include("config.hrl").
+-include("records.hrl").
 
 -define(SERVER, ?MODULE).
 
--define(TOM, 'king@Tom-VirtualBox').
-
--define(ELAD, 'king@pds-MacBook-Pro').
-
--define(MASTER_NODE, 'king@132.72.104.105').
-
--define(NODE1, 'node1@132.72.104.125').
--define(NODE2, 'node2@132.72.104.171').
--define(NODE3, 'node3@132.72.104.248').
 -define(TIMER_INTERVAL, 1000).
 
 -record(state, {nn_amount,nnPerNode,mutate_iteration,max_mutate_iteration,rabbit_pos, track,prev_nodes, timer_ref, parentGenes}).

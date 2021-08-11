@@ -9,6 +9,7 @@
 -module(database).
 -author("elad.sofer").
 -include("records.hrl").
+-include("config.hrl").
 %% API
 -export([init/1,init/0,write/5,read_all_mutateIter/1,select_best_genes/1,write_records/1,delete_all_mutateIter/1,get/1]).
 

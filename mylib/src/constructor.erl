@@ -9,6 +9,7 @@
 -compile(export_all).
 -compile([debug_info]).
 -include("records.hrl").
+-include("config.hrl").
 
 construct_Genotype(FileName, SensorName,ActuatorName,HiddenLayerDensities)->
 	% Creating The data structures records

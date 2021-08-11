@@ -9,6 +9,7 @@
 -compile([debug_info]).
 -compile(export_all).
 -include("records.hrl").
+-include("config.hrl").
 
 gen(PhenoTypePid,Node)-> spawn(Node,?MODULE,loop,[PhenoTypePid]).
 

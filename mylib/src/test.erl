@@ -6,6 +6,7 @@
 %%%-------------------------------------------------------------------
 -module(test).
 -include("records.hrl").
+-include("config.hrl").
 -record(test,{name1,name2}).
 -compile(export_all).
 %Layers,Max_Mutation_iterations,Simulation_steps,NN_amount,Rabbit_pos,Nodes

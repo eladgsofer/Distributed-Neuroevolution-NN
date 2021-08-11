@@ -3,6 +3,7 @@
 
 -behaviour(wx_object).
 -include_lib("wx/include/wx.hrl").
+-include("config.hrl").
 
 %% API
 -export([start/0, update_location/3]).
@@ -47,9 +48,9 @@ init([]) ->
   Panel  = wxPanel:new(Frame),
   wxFrame:createStatusBar(Frame),
   wxFrame:show(Frame),
-  BackGround = wxBitmap:new("background.bmp"),
-  Rabbit = wxBitmap:new("rabbit.bmp"),
-  Hunter = wxBitmap:new("hunter.bmp"),
+  BackGround = wxBitmap:new("images/background.bmp"),
+  Rabbit = wxBitmap:new("images/rabbit.bmp"),
+  Hunter = wxBitmap:new("images/hunter.bmp"),
   %ets:insert(gui_db,{{10,10},Rabbit}),
   %ets:insert(gui_db,{{30,30},Hunter}),
   CallBackPaint =	fun(#wx{event = #wxPaint{}}, _wxObj)->
@@ -86,8 +87,8 @@ init([]) ->
   {stop, Reason :: term(), NewState :: #main_PC_state{}}).
 handle_call({update_img, Rabbit_pos,Hunter_pos,Statistics}, _From, State = #main_PC_state{ panel = Panel}) ->
   ets:delete_all_objects(ets:whereis(gui_db)),
-  RabbitBMP = wxBitmap:new("rabbit.bmp"),
-  HunterBMP = wxBitmap:new("hunter.bmp"),
+  RabbitBMP = wxBitmap:new("images/rabbit.bmp"),
+  HunterBMP = wxBitmap:new("images/hunter.bmp"),
   ets:insert(gui_db,{Rabbit_pos,RabbitBMP}),ets:insert(gui_db,{Hunter_pos,HunterBMP}),
   {X_hunter,Y_hunter} = Hunter_pos, {X_rabbit,Y_rabbit} = Rabbit_pos,
   %%Statistics=[{process, #num},{neurons, $num},{fitness, $num}, {distance, #num}]
