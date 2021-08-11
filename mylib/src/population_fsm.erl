@@ -96,11 +96,13 @@ calc_state(cast, {runNetwork, BestGenesIds, MutIter}, #pop_state{agentsIds = Age
                  StateData;
 
                ALen > GLen->
+                 io:format("###MORE AGENTS THEN GENES~n"),
                  % Assume AgentsIds are sorted
                  ActiveAgentsIds = lists:sublist(AgentsIds, GLen),
 
                  % Delete the agents which aren't needed
                  PassiveAgentsIds = lists:sublist(AgentsIds, GLen + 1, ALen),
+                 io:format("###PassiveAgentsIds~p ActiveAgentsIds~p~n", [ActiveAgentsIds, PassiveAgentsIds]),
                  lists:foreach(fun(C)->supervisor:delete_child(StateData#pop_state.agentsMgmt, C) end, PassiveAgentsIds),
 
                  %TODO make sure that NNIds, is ordered? potential bug keysort via key 2
@@ -108,6 +110,8 @@ calc_state(cast, {runNetwork, BestGenesIds, MutIter}, #pop_state{agentsIds = Age
                    nn_amount = GLen, nnIds =lists:sublist(NNIds, 1, GLen)};
 
                ALen < GLen ->
+                 io:format("###MORE GENES THEN AGENTS~n"),
+
                  io:format("ALen:~p~n",[ALen]),
                  io:format("GLen:~p~n",[GLen]),
 

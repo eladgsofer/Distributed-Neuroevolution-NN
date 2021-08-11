@@ -30,11 +30,11 @@
 
 -define(ELAD, 'king@pds-MacBook-Pro').
 
--define(MASTER_NODE, ?TOM).
+-define(MASTER_NODE, 'king@132.72.104.105').
 
--define(NODE1, 'node1@Tom-VirtualBox').
--define(NODE2, 'node2@Tom-VirtualBox').
--define(NODE3, 'node3@Tom-VirtualBox').
+-define(NODE1, 'node1@132.72.104.125').
+-define(NODE2, 'node2@132.72.104.171').
+-define(NODE3, 'node3@132.72.104.248').
 -define(TIMER_INTERVAL, 1000).
 
 -record(state, {nn_amount,nnPerNode,mutate_iteration,max_mutate_iteration,rabbit_pos, track,prev_nodes, timer_ref, parentGenes}).
@@ -159,6 +159,7 @@ handle_info(_Info, State) ->
                true->
                  handleIteration(State, Active_Nodes, Mutate_iteration);
                false ->
+                 io:format("#### NODES CHANGED ACTIVE:~p PREV:~p~n", [Active_Nodes, State#state.prev_nodes]),
                  % Update the work per node equally
                  Updated_State_1 = State#state{prev_nodes = Active_Nodes, nnPerNode = round(math:floor(NN_Amount/length(Active_Nodes)))},
                  io:format("NEW ACTIVE NODES:~p~n", [Active_Nodes]),
@@ -275,11 +276,11 @@ generateSeeds(NN_amount,Layers)-> % Initialize State
 
 findActiveNodes()->
   NodeList = [?MASTER_NODE, ?NODE1, ?NODE2, ?NODE3],
-  [Node || Node<- NodeList, net_adm:ping(Node)==pong].
+  [Node || Node<- NodeList, net_kernel:connect_node(Node)==true].
 
 findSlaves()->
   NodeList = [?NODE1, ?NODE2, ?NODE3],
-  [Node || Node<- NodeList, net_adm:ping(Node)==pong].
+  [Node || Node<- NodeList, net_kernel:connect_node(Node)==true].
 
 restartIteration(State, MutIter, ActiveNodes)->
   database:delete_all_mutateIter(MutIter),
