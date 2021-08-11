@@ -8,7 +8,6 @@
 %%%-------------------------------------------------------------------
 -module(master_server).
 -author("tom").
--include("records.hrl").
 
 -behaviour(gen_server).
 
