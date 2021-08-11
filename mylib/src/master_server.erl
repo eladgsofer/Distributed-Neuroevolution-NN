@@ -78,14 +78,12 @@ init([Layers,Max_Mutation_iterations,Simulation_steps,NN_amount, IsMaster, Serve
     true->
       ActiveNodes = findActiveNodes(),
       ActiveSlaves = findSlaves(),
-      io:format("ActiveNodes:~p~n", [ActiveNodes]),
-      mnesia:create_schema(ActiveNodes),
-      mnesia:start(),
-
+      database:createDBSchema(ActiveNodes),
       % Trigger Slaves - They start the Mnesia
       lists:foreach(fun(Sl_Node)-> Dest = {utills:generateServerId(Sl_Node, ?MODULE), Sl_Node}, io:format("Dest~p", [Dest]) , Dest ! {king, startSlave} end, ActiveSlaves),
       collectMnesiaStartMsgs(ActiveSlaves),
       database:init(ActiveNodes),
+
       NNPerNode = round(math:floor(NN_amount/length(findActiveNodes()))),
 
       startPopulationFSM(self(), NNPerNode, Layers, ?SIM_ITERATIONS),
