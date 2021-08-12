@@ -44,7 +44,7 @@ handle_cast({executeIteration, MutId, Gene}, State = #agent_state{nnId=NNid, col
   FileName = list_to_atom("logs/" ++ atom_to_list(AgentId) ++ "_" ++integer_to_list(MutId)),
 
   {Score, ProcessesCount, _} = exoself:map(FileName, MutatedGene),
-  io:format("NNid:~p|Score:~p|Processes Count:~p~n",[AgentId, Score, ProcessesCount]),
+  %io:format("NNid:~p|Score:~p|Processes Count:~p~n",[AgentId, Score, ProcessesCount]),
   database:write(NNid,MutId,MutatedGene,ProcessesCount, Score),
   %io:format("CollectorPid:~p~n", [CollectorPid]),
   %io:format("##########################"),

@@ -30,14 +30,14 @@ createDBSchema(ActiveNodes)->
   mnesia:start().
 
 write_records([])->ok;
-write_records([Record|Records])->Fun = fun() ->mnesia:write(Record) end, Res = mnesia:transaction(Fun),
-  io:format("Res~p~n", [Res]),
+write_records([Record|Records])->Fun = fun() ->mnesia:write(Record) end, mnesia:transaction(Fun),
+
   write_records(Records).
 
 
 write(NN_id, MutId, Gene, Processes_count, Score) ->
   Tmp = #db{nn_id = NN_id,mutId = MutId,gene = Gene,processes_count = Processes_count,score = Score},
-  Fun = fun() ->mnesia:write(Tmp) end, Res = mnesia:transaction(Fun), io:format("Res~p~n", [Res]).
+  Fun = fun() ->mnesia:write(Tmp) end, mnesia:transaction(Fun).
 
 read_all_mutateIter(Iter) ->
   F = fun() ->

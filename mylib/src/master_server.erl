@@ -29,7 +29,7 @@
 
 -define(TIMER_INTERVAL, 1000).
 
--record(state, {nn_amount,nnPerNode,mutate_iteration,max_mutate_iteration,rabbit_pos, track,prev_nodes, timer_ref, parentGenes}).
+-record(state, {nn_amount,nnPerNode,mutate_iteration,max_mutate_iteration, track,prev_nodes, timer_ref, parentGenes}).
 -record(track,{?MASTER_NODE,?NODE1,?NODE2,?NODE3}).
 
 %%%===================================================================
@@ -66,11 +66,10 @@ init([Layers,Max_Mutation_iterations,Simulation_steps,NN_amount, IsMaster, Serve
   register(ServerId, self()), %TODO check if register global and how?
 
   %TODO Write configuration to DB SIM_STEPS...
-  Rabbit_pos= exoself:generateRabbitPatrol(),
   Track = #track{?MASTER_NODE = {?MASTER_NODE,maps:new()}, ?NODE1 = {?NODE1,maps:new()},?NODE2 = {?NODE2,maps:new()},?NODE3 = {?NODE3,maps:new()}},
 
   State = #state{nn_amount = NN_amount, mutate_iteration=1, max_mutate_iteration = Max_Mutation_iterations,
-    rabbit_pos = Rabbit_pos, track=Track, prev_nodes = findActiveNodes(), parentGenes = []},
+    track=Track, prev_nodes = findActiveNodes(), parentGenes = []},
   %io:format("Registered P:~p~n", [registered()]),
   NewState =
     case IsMaster of
@@ -154,9 +153,11 @@ handle_info(_Info, State) ->
                  Updated_State_1 = State#state{prev_nodes = Active_Nodes, nnPerNode = round(math:floor(NN_Amount/length(Active_Nodes)))},
                  io:format("NEW ACTIVE NODES:~p~n", [Active_Nodes]),
                  io:format("NEW nnPerNode:~p~n", [Updated_State_1#state.nnPerNode]),
-                 Updated_State_2 = restartIteration(Updated_State_1,Mutate_iteration, Active_Nodes),
-                 handleIteration(Updated_State_2, Active_Nodes, Mutate_iteration-1)
+                 io:format("Mutate_iteration:~p~n", [Mutate_iteration]),
+                 Updated_State_1
 
+                 %Updated_State_2 = restartIteration(Updated_State_1,Mutate_iteration, Active_Nodes),
+                 %handleIteration(Updated_State_2, Active_Nodes, Mutate_iteration-1)
              end,
 
   {noreply, NewState}.
@@ -204,10 +205,7 @@ handleIteration(State,Active_Nodes,Mutate_iteration) ->
 
           {ok,Path} = gen_server:call(Agent,{run_simulation,Best_Genotype}),
           io:format("hunter path:~p~n", [Path]),
-          %display(Path,Statistics),
-          %io:format("TIMER_REF~p~n", [State#state.timer_ref]),
-          %turnOffTimer(State#state.timer_ref),
-          %io:format("whoooo~p~n", [State#state.timer_ref]),
+          display(Path,Statistics),
 
           State
       end;
@@ -219,14 +217,17 @@ triggerCalcState(Mutation_iterations,Active_Nodes,Updated_State)-> %%mnesia:forc
   {atomic,List} = database:read_all_mutateIter(Mutation_iterations),
   OffspringGenes = [{Score,{NNid,MutatIter}} || {db,NNid,MutatIter,_,_,Score} <-List],
   Process_List =  [Process|| {db,_,_,_,Process,_} <-List],
-  io:format("Processes amount:~p~n", [lists:sum(Process_List)]),
+  Gene_List =  [Gene|| {db,_,_,Gene,_,_} <-List],
   Sortd_by_score = lists:keysort(1, OffspringGenes ++ Updated_State#state.parentGenes),
-  %io:format("Sortd_by_score:~p~n", [Sortd_by_score]),
   BestGenotypes = lists:sublist(Sortd_by_score, Updated_State#state.nnPerNode),
-  %io:format("Best_Genotypes_to_brodcast:~p~n", [BestGenotypes]),
   U_S = Updated_State#state{parentGenes = BestGenotypes},
-  %io:format("Updated prev_best_gene:~p~n", [U_S#state.prev_best_gene]),
-  %io:format("Bests_genotyps:~p~n", [Bests_genotyps]),
+  {BestScore,{BestNNid,_}} = hd(BestGenotypes),
+  Short_Active_Nodes = [tl(hd(string:split(erl_types:atom_to_string(Node),"@")))||Node<-Active_Nodes],
+  Statistics = [{process, lists:sum(Process_List)*length(Active_Nodes)},{neurons, neurons_amount(Gene_List,0)},
+    {bestGeneScore, BestScore}, {gene_died, length(Sortd_by_score)-length(BestGenotypes)},{genration,Mutation_iterations},
+    {active,Short_Active_Nodes}, {workload,length(OffspringGenes)/length(Active_Nodes)},{bestGeneID,BestNNid}],
+  graphic:update_stat(Statistics),
+
   broadcastGenes(BestGenotypes,Active_Nodes,U_S), U_S.
 
 broadcastGenes(BestGenotypes,Active_Nodes,Updated_State)->
@@ -234,7 +235,7 @@ broadcastGenes(BestGenotypes,Active_Nodes,Updated_State)->
   %io:format("ChosenGenes:~p~n", [ChosenGenes]),
 
   % PopAddresses = [{Node, utills:generateServerId(Node, population_fsm)}||Node<-Active_Nodes],
-  PopAddresses = [utills:generateServerId(Node, population_fsm)||Node<-Active_Nodes],   %TODO VIEW HOW TO CAST TO A REMOTE NODE
+  PopAddresses = [utills:generateServerId(Node, population_fsm)||Node<-Active_Nodes],
   %io:format("Population Addresses~p~n", [PopAddresses]),
   TriggerCalc = fun(PopAddr)-> gen_server:cast({global, PopAddr}, {runNetwork, ChosenGenes, Updated_State#state.mutate_iteration}) end,
   lists:foreach(TriggerCalc, PopAddresses).
@@ -275,9 +276,16 @@ findSlaves()->
 
 restartIteration(State, MutIter, ActiveNodes)->
   database:delete_all_mutateIter(MutIter),
-  io:format("BEFORE:~n~p~n", [State#state.track#track.?MASTER_NODE]),
+  io:format("BEFORE:~n~p~n", [State#state.track#track.?TOM]),
+  io:format("BEFORE:~n~p~n", [State#state.track#track.?NODE1]),
+  io:format("BEFORE:~n~p~n", [State#state.track#track.?NODE2]),
+  io:format("BEFORE:~n~p~n", [State#state.track#track.?NODE3]),
+
   Updated_State = removeMutIter(ActiveNodes,MutIter,State),
-  io:format("AFTER:~n~p~n", [Updated_State#state.track#track.?MASTER_NODE]),
+  io:format("AFTER:~n~p~n", [State#state.track#track.?TOM]),
+  io:format("AFTER:~n~p~n", [State#state.track#track.?NODE1]),
+  io:format("AFTER:~n~p~n", [State#state.track#track.?NODE2]),
+  io:format("AFTER:~n~p~n", [State#state.track#track.?NODE3]),
   Updated_State.
 
 removeMutIter([],_, State) -> State;
@@ -305,3 +313,6 @@ collectMnesiaStartMsgs([S|Slaves])->
   receive
     {S, mnesiaStarted} -> collectMnesiaStartMsgs(Slaves)
   end.
+
+neurons_amount([],Acc)->Acc;
+neurons_amount([Gene|Genes],Acc)-> Curr=hd(Gene),neurons_amount(Genes,Acc+length(Curr#cortex.nids)).

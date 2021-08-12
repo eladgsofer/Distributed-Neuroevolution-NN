@@ -14,26 +14,18 @@
 master()->
 
   Layers=[4,8,5],
-  Max_Mutation_iterations=10,
+  Max_Mutation_iterations=20,
   Simulation_steps=5000,
-  NN_amount=3, % A NUMBER WHICH DIVIDES BY NUMBER OF NODES
-  %{NNids, AgentsIds} = master_server:generate_seeds(NN_amount,Layers),
-  %io:format("NNid:~p~n", [NNids]),
-  %io:format("NNid:~p~n", [AgentsIds]),
-  %population_fsm:start_link(NN_amount, Simulation_steps, self(), {NNids, AgentsIds}).
- %start_link(Layers,Max_Mutation_iterations,Simulation_steps,NN_amount,IsMaster) -> %Nods={node1,node2,node3}
+  NN_amount=4*3*50, % A NUMBER WHICH DIVIDES BY NUMBER OF NODES
+
   master_server:start_king(Layers,Max_Mutation_iterations,Simulation_steps,NN_amount).
 
 slave()->
   Layers=[4,8,5],
-  Max_Mutation_iterations=10,
+  Max_Mutation_iterations=20,
   Simulation_steps=5000,
-  NN_amount=4*3, % A NUMBER WHICH DIVIDES BY NUMBER OF NODES
-  %{NNids, AgentsIds} = master_server:generate_seeds(NN_amount,Layers),
-  %io:format("NNid:~p~n", [NNids]),
-  %io:format("NNid:~p~n", [AgentsIds]),
-  %population_fsm:start_link(NN_amount, Simulation_steps, self(), {NNids, AgentsIds}).
-  %start_link(Layers,Max_Mutation_iterations,Simulation_steps,NN_amount,IsMaster) -> %Nods={node1,node2,node3}
+  NN_amount=4*3*50, % A NUMBER WHICH DIVIDES BY NUMBER OF NODES
+
 
   master_server:start_slave(Layers,Max_Mutation_iterations,Simulation_steps,NN_amount).
 
