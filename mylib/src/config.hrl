@@ -2,7 +2,7 @@
 %%% @author elad.sofer
 %%% @copyright (C) 2021, <COMPANY>
 %%% @doc
-%%%
+%%% This module holds the system configuration
 %%% @end
 %%% Created : 11. Aug 2021 11:03 AM
 %%%-------------------------------------------------------------------
@@ -11,6 +11,7 @@
 % Systems properties
 -define(SIM_ITERATIONS, 62).
 -define(HUNTER_INIT_LOC, [1,70]).
+-define(TRACK_GENES, false).
 
 % Nodes
 -define(TOM, 'king@Tom-VirtualBox').

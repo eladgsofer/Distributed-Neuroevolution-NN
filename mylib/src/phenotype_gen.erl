@@ -36,15 +36,15 @@ map(FileName, Genotype)->
 	receive
 		% Writing to a file in the end of the process
 		{Cx_PId,score_and_backup,{Neuron_IdsNWeights, Score, SimStepsVec}} ->
+			case ?TRACK_GENES of
+				true-> writeLog(FileName, IdsNPIds,Genotype,Neuron_IdsNWeights);
+				false-> dontTrackGenes
+			end,
 
-			%writeLog(FileName, IdsNPIds,Genotype,Neuron_IdsNWeights),
-			%io:format("Finished updating to file:~p~n",[FileName]),
 			{Score, ProcessesCount, SimStepsVec}
-			%io:format("FINISHED WITH ~p~n", [Res]), Res
 
 		% update the genotype score
 	end.
-%The map/1 function maps the tuple encoded genotype into a process based phenotype. The map function expects for the Cx record to be the leading tuple in the tuple list it reads from the FileName. We create an ets table to map Ids to PIds and back again. Since the Cortex element contains all the Sensor, Actuator, and Neuron Ids, we are able to spawn each neuron using its own gen function, and in the process construct a map from Ids to PIds. We then use link_CerebralUnits to link all non Cortex elements to each other by sending each spawned process the information contained in its record, but with Ids converted to Pids where appropriate. Finally, we provide the Cortex process with all the PIds in the NN system by executing the link_Cortex/2 function. Once the NN is up and running, exoself starts its wait until the NN has finished its job and is ready to backup. When the cortex initiates the backup process it sends exoself the updated Input_PIdPs from its neurons. Exoself uses the update_genotype/3 function to update the old genotype with new weights, and then stores the updated version back to its file.
 
 spawn_CerebralUnits(IdsNPIds,CerebralUnitType,[Id|Ids])->
 
@@ -103,10 +103,6 @@ convert_IdPs2PIdPs(_IdsNPIds,[{bias,Bias}],Acc)->
 	lists:reverse([Bias|Acc]);
 convert_IdPs2PIdPs(IdsNPIds,[{Id,Weights}|Fanin_IdPs],Acc)->
 	convert_IdPs2PIdPs(IdsNPIds,Fanin_IdPs,[{ets:lookup_element(IdsNPIds,Id,2),Weights}|Acc]).
-%The link_CerebralUnits/2 converts the Ids to PIds using the created IdsNPids ETS table. At this point all the elements are spawned, and the processes are waiting for their
-% initial states. 'convert_IdPs2PIdPs' converts the IdPs tuples into tuples that use PIds instead of Ids, such that the Neuron will
-% know which weights are to be associated with which incoming vector signals. The last element is the bias, which is added
-% to the list in a non tuple form. Afterwards, the list is reversed to take its proper order.
 
 link_Cortex(Cx,IdsNPIds) ->
 	Cx_Id = Cx#cortex.id,
@@ -119,8 +115,8 @@ link_Cortex(Cx,IdsNPIds) ->
 	NPIds = [ets:lookup_element(IdsNPIds,NId,2) || NId <- NIds],
 
 
-	Cx_PId ! {self(),{Cx_Id,SPIds,APIds,NPIds}, ?SIM_ITERATIONS -2 }. %TODO STEPS
-%The cortex is initialized to its proper state just as other elements. Because we have not yet implemented a learning algorithm for our NN system, we need to specify when the NN should shutdown. We do this by specifying the total number of cycles the NN should execute before terminating, which is 1000 in this case.
+	Cx_PId ! {self(),{Cx_Id,SPIds,APIds,NPIds}, ?SIM_ITERATIONS -2 }.
+
 
 update_genotype(IdsNPIds,Genotype,[{N_Id,PIdPs}|WeightPs])->
 	N = lists:keyfind(N_Id, 2, Genotype),

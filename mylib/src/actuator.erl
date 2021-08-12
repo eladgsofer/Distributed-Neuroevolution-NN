@@ -1,3 +1,12 @@
+%%%-------------------------------------------------------------------
+%%% @author elad.sofer
+%%% @copyright (C) 2021, <COMPANY>
+%%% @doc
+%%%
+%%% @end
+%%% Created : 01. Aug 2021 2:23 PM
+%%%-------------------------------------------------------------------
+
 -module(actuator).
 -compile(export_all).
 -compile([debug_info]).
@@ -12,7 +21,6 @@ loop(ExoSelf_PId, PrevLocation) ->
 		{ExoSelf_PId,{Id,Cx_PId,ActuatorName,Fanin_PIds}} ->
 			loop(Id,Cx_PId,ActuatorName,{Fanin_PIds,Fanin_PIds},PrevLocation,[])
 	end.
-%When gen/2 is executed it spawns the actuator element and immediately begins to wait for its initial state message.
 
 loop(Id,Cx_PId,AName,{[From_PId|Fanin_PIds],MFanin_PIds},PrevHunterLoc,Acc) ->
 	receive
@@ -24,15 +32,15 @@ loop(Id,Cx_PId,AName,{[From_PId|Fanin_PIds],MFanin_PIds},PrevHunterLoc,Acc) ->
 loop(Id,Cx_PId,AName,{[],MFanin_PIds}, PrevHunterLoc, Acc)->
 	Result = lists:reverse(Acc),
 	actuator:AName(Result),
+	% Calculate the step
 	[X_Step, Y_Step] = [calcStep(Point) || Point<-Result],
 	[PrevX, PrevY] = PrevHunterLoc,
+	% Calculate the next position
 	HunterLoc = [PrevX + X_Step, PrevY + Y_Step],
 	Cx_PId ! {self(),sync, HunterLoc},
 	loop(Id,Cx_PId,AName,{MFanin_PIds,MFanin_PIds}, HunterLoc,[]).
-%The actuator process gathers the control signals from the neurons, appending them to the accumulator. The order in which the signals are accumulated into a vector is in the same order as the neuron ids are stored within NIds. Once all the signals have been gathered, the actuator sends cortex the sync signal, executes its function, and then again begins to wait for the neural signals from the output layer by reseting the Fanin_PIds from the second copy of the list.
 
 pts(Result)-> ok.
-
 
 calcStep(Val)->
 	if

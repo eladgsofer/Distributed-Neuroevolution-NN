@@ -2,7 +2,6 @@
 %%% @author tom
 %%% @copyright (C) 2021, <COMPANY>
 %%% @doc
-%%%
 %%% @end
 %%% Created : 04. Aug 2021 3:44 PM
 %%%-------------------------------------------------------------------
@@ -39,14 +38,18 @@
 %%--------------------------------------------------------------------
 %% @doc
 %% Starts the server
-%%
+%%%%% The master_server is a gen_server OTP which responsible for running the whole show.
+%%%%% it is responsible for triggering the all the Population FSM's, gather all the Genes scores
+%%%%% select the best Offsprings and supervise the system. in case a node is down, the master
+%%%%% changes the PopulationFSM's workload, and change the population NN amount.
+%%%%% if a master_server is being called as "king" it is responsible for the GUI as well,
+%%%%% otherwise it just trigger's it's own population FSMs.
 %% @end
-%%-----------------
 %% ---------------------------------------------------
-
+% Start a king master_Server
 start_king(Layers,Max_Mutation_iterations,Simulation_steps,NN_amount)->
   start_link(Layers,Max_Mutation_iterations,Simulation_steps,NN_amount,true).
-
+% Start a king master_Server
 start_slave(Layers,Max_Mutation_iterations,Simulation_steps,NN_amount)->
   start_link(Layers,Max_Mutation_iterations,Simulation_steps,NN_amount,false).
 
@@ -62,51 +65,63 @@ start_link(Layers,Max_Mutation_iterations,Simulation_steps,NN_amount,IsMaster) -
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
-init([Layers,Max_Mutation_iterations,Simulation_steps,NN_amount, IsMaster, ServerId]) ->
-  register(ServerId, self()), %TODO check if register global and how?
 
-  %TODO Write configuration to DB SIM_STEPS...
+%%--------------------------------------------------------------------
+%% @doc
+%% the init has a different role depending on king/slave flag.
+%% slave role - wait for the master to init the mnesia service, and start commanding the FSM machine
+%% king role - init the node's mnesia service, start the GUI, command it's FSM. sync the populations' FSMs.
+%% and trigger the rest of the population FSM's to calculate the next generation.
+%%
+%% @end
+%% ---------------------------------------------------
+
+init([Layers,Max_Mutation_iterations,Simulation_steps,NN_amount, IsMaster, ServerId]) ->
+  % avoid a bug.
+  register(ServerId, self()),
+
   Track = #track{?MASTER_NODE = {?MASTER_NODE,maps:new()}, ?NODE1 = {?NODE1,maps:new()},?NODE2 = {?NODE2,maps:new()},?NODE3 = {?NODE3,maps:new()}},
 
   State = #state{nn_amount = NN_amount, mutate_iteration=1, max_mutate_iteration = Max_Mutation_iterations,
     track=Track, prev_nodes = findActiveNodes(), parentGenes = []},
-  %io:format("Registered P:~p~n", [registered()]),
   NewState =
     case IsMaster of
-    true->
+      %% ---------------- master_server AS KING
+      true->
+      % find the Active nodes and slaves
       ActiveNodes = findActiveNodes(),
       ActiveSlaves = findSlaves(),
+      % init the DB in remote nodes
       database:createDBSchema(ActiveNodes),
       % Trigger Slaves - They start the Mnesia
       lists:foreach(fun(Sl_Node)-> Dest = {utills:generateServerId(Sl_Node, ?MODULE), Sl_Node}, io:format("Dest~p", [Dest]) , Dest ! {king, startSlave} end, ActiveSlaves),
       collectMnesiaStartMsgs(ActiveSlaves),
       database:init(ActiveNodes),
-
+      % calculate FSM workload
       NNPerNode = round(math:floor(NN_amount/length(findActiveNodes()))),
-
+      % start FSM and GUI.
       startPopulationFSM(self(), NNPerNode, Layers, ?SIM_ITERATIONS),
       graphic:start(),
-
+      % Trigger FSM's status polling timer
       {ok, TimerRef} = timer:send_interval(?TIMER_INTERVAL, self(), check_genotyps),
       State#state{timer_ref=TimerRef, nnPerNode = NNPerNode};
-
+    %% ---------------- master_server AS slave
     false ->
+      % Wait that the master init the Mnesia DB
       io:format("Waiting for master...~n"),
       receive
         {king, startSlave} -> mnesia:start(), {king, ?MASTER_NODE} ! {node(), mnesiaStarted}
       end,
-
+      % Calculate the workload
       NNPerNode = round(math:floor(NN_amount/length(findActiveNodes()))),
       MasterId = {king, ?MASTER_NODE},
       io:format("STARTING POPULATION~n"),
+      % start the FSM
       startPopulationFSM(MasterId, NNPerNode, Layers, ?SIM_ITERATIONS),
       State#state{nnPerNode = NNPerNode}
   end, {ok, NewState}.
 
 
-startPopulationFSM(MasterId, NNPerNode,Layers, Simulation_steps)->
-  {NNids, AgentsIds} = generateSeeds(NNPerNode,Layers),
-  population_fsm:start_link(NNPerNode,Simulation_steps, MasterId,{NNids, AgentsIds}).
 
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
@@ -119,6 +134,8 @@ handle_cast({ok, Node, NNids},State)->
   gen_statem:cast({global, Servername}, {runNetwork, Seeds, 1}),
   {noreply, State};
 
+% Update which Population FSM finished to create it's population generation,
+% when all the Population FSM's finished, a new generation will born.
 handle_cast({Node, done, Mutation_iterations}, State) ->
   io:format("Done from:~p~n", [Node]),
   Old = State#state.track,
@@ -139,6 +156,9 @@ handle_cast({Node, done, Mutation_iterations}, State) ->
              end,
   {noreply, State#state{track = NewTrack}}.
 
+% The timer callback function, this function verifies if all the node's FSM's finished their offspring gene and scoring creation,
+% and if everyone finished it picks the best genes from the offsprings and parents and trigger a new generation creation if necessary.
+% when max_mutation is reached, the best gene Graphic simulation is being displayed in the GUI.
 handle_info(_Info, State) ->
   Mutate_iteration = State#state.mutate_iteration,
   NN_Amount = State#state.nn_amount,
@@ -148,6 +168,7 @@ handle_info(_Info, State) ->
                true->
                  handleIteration(State, Active_Nodes, Mutate_iteration);
                false ->
+                 % Restart the current iteration, and rebalance node's workload.
                  io:format("#### NODES CHANGED ACTIVE:~p PREV:~p~n", [Active_Nodes, State#state.prev_nodes]),
                  % Update the work per node equally
                  Updated_State_1 = State#state{prev_nodes = Active_Nodes, nnPerNode = round(math:floor(NN_Amount/length(Active_Nodes)))},
@@ -156,8 +177,6 @@ handle_info(_Info, State) ->
                  io:format("Mutate_iteration:~p~n", [Mutate_iteration]),
                  Updated_State_1
 
-                 %Updated_State_2 = restartIteration(Updated_State_1,Mutate_iteration, Active_Nodes),
-                 %handleIteration(Updated_State_2, Active_Nodes, Mutate_iteration-1)
              end,
 
   {noreply, NewState}.
@@ -169,16 +188,14 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-
-turnOffTimer(TRef) -> RES = timer:cancel(TRef), io:format(RES).
-
-filterNodesMaps([],_, Acc)-> lists:reverse(Acc);
-
-filterNodesMaps([Node|ActiveNodes],Maps, Acc)->
-  {_, Map} = lists:keyfind(Node, 1, Maps),
-  filterNodesMaps(ActiveNodes, Maps, [Map|Acc]).
-
-
+% start the PopulationFSM gen_statem
+startPopulationFSM(MasterId, NNPerNode,Layers, Simulation_steps)->
+  {NNids, AgentsIds} = generateSeeds(NNPerNode,Layers),
+  population_fsm:start_link(NNPerNode,Simulation_steps, MasterId,{NNids, AgentsIds}).
+%%%-------------------------------------------------------------------
+% This function handles a generation iteration, verifies the stopping condition, trigerring the
+% corresponding FSMs, picking the best genes from parent and offsprings and cast them as the new generation
+% to all of the FSMs.
 handleIteration(State,Active_Nodes,Mutate_iteration) ->
   Track = State#state.track, Maps_list = tl(tuple_to_list(Track)),
   Maps = filterNodesMaps(Active_Nodes, Maps_list, []),
@@ -211,8 +228,9 @@ handleIteration(State,Active_Nodes,Mutate_iteration) ->
       end;
     false-> State
   end.
+%%%-------------------------------------------------------------------
 
-
+% Triggers the population FSM's, to acheive the next offspring generation.
 triggerCalcState(Mutation_iterations,Active_Nodes,Updated_State)-> %%mnesia:force_load_table(db),
   {atomic,List} = database:read_all_mutateIter(Mutation_iterations),
   OffspringGenes = [{Score,{NNid,MutatIter}} || {db,NNid,MutatIter,_,_,Score} <-List],
@@ -231,7 +249,9 @@ triggerCalcState(Mutation_iterations,Active_Nodes,Updated_State)-> %%mnesia:forc
   graphic:update_stat(Statistics),
 
   broadcastGenes(BestGenotypes,Active_Nodes,U_S), U_S.
+%%%-------------------------------------------------------------------
 
+% Cast to all the populations addresses a "trigger" request
 broadcastGenes(BestGenotypes,Active_Nodes,Updated_State)->
   ChosenGenes = [{NNid,MutatIter}||{_,{NNid,MutatIter}} <-BestGenotypes],
   %io:format("ChosenGenes:~p~n", [ChosenGenes]),
@@ -241,7 +261,10 @@ broadcastGenes(BestGenotypes,Active_Nodes,Updated_State)->
   %io:format("Population Addresses~p~n", [PopAddresses]),
   TriggerCalc = fun(PopAddr)-> gen_server:cast({global, PopAddr}, {runNetwork, ChosenGenes, Updated_State#state.mutate_iteration}) end,
   lists:foreach(TriggerCalc, PopAddresses).
+%%%-------------------------------------------------------------------
 
+% Choosing the best genes for the next generation via selecting from the Parent genes
+% and the newly offsprings
 chooseBest(Mutation_iterations,State)->%%mnesia:force_load_table(db),
   {atomic,List} = database:read_all_mutateIter(Mutation_iterations),
   Filtered = [{Score,{NNid,MutatIter}}||{db,NNid,MutatIter,_,_,Score} <-List],
@@ -250,7 +273,11 @@ chooseBest(Mutation_iterations,State)->%%mnesia:force_load_table(db),
   {atomic,Best_Net} = database:get({NNid,MutatIter}),
   {db,_,_,Genotype,Processes_cnt,Score_db}=hd(Best_Net),
   {Score_db,Genotype,Processes_cnt}.
+%%%-------------------------------------------------------------------
+%%% Utilities
+%%%-------------------------------------------------------------------
 
+% Gui display, update the Rabbit/Hunter locations and statistics.
 display([],_)-> turnOffTimer;
 display([[R_X,R_Y,H_X,H_Y]|Path],Statistics)->
   graphic:update_location({R_X*10,R_Y*10},{H_X*10,H_Y*10}),
@@ -258,6 +285,7 @@ display([[R_X,R_Y,H_X,H_Y]|Path],Statistics)->
   %io:format("CurrentPath~p~n", [Path]),
   display(Path,Statistics).
 
+% Generate the seed Genes
 generateSeeds(NN_amount,Layers)-> % Initialize State
   % Each node create it's own seed
   {NNids, AgentsIds} = Env_Params = utills:generateNNIds(1,NN_amount),
@@ -267,7 +295,7 @@ generateSeeds(NN_amount,Layers)-> % Initialize State
     processes_count = 0,score = 0}||{NNid, AgentId}<-AgentIdsZipped],
   database:write_records(Seeds), Env_Params.
 
-
+% Node monitoring Utilities
 findActiveNodes()->
   NodeList = [?MASTER_NODE, ?NODE1, ?NODE2, ?NODE3],
   [Node || Node<- NodeList, net_kernel:connect_node(Node)==true].
@@ -276,45 +304,20 @@ findSlaves()->
   NodeList = [?NODE1, ?NODE2, ?NODE3],
   [Node || Node<- NodeList, net_kernel:connect_node(Node)==true].
 
-restartIteration(State, MutIter, ActiveNodes)->
-  database:delete_all_mutateIter(MutIter),
-  io:format("BEFORE:~n~p~n", [State#state.track#track.?MASTER_NODE]),
-  io:format("BEFORE:~n~p~n", [State#state.track#track.?NODE1]),
-  io:format("BEFORE:~n~p~n", [State#state.track#track.?NODE2]),
-  io:format("BEFORE:~n~p~n", [State#state.track#track.?NODE3]),
-
-  Updated_State = removeMutIter(ActiveNodes,MutIter,State),
-  io:format("AFTER:~n~p~n", [State#state.track#track.?MASTER_NODE]),
-  io:format("AFTER:~n~p~n", [State#state.track#track.?NODE1]),
-  io:format("AFTER:~n~p~n", [State#state.track#track.?NODE2]),
-  io:format("AFTER:~n~p~n", [State#state.track#track.?NODE3]),
-  Updated_State.
-
-removeMutIter([],_, State) -> State;
-removeMutIter([Node|ActiveNodes],Mutation_iterations, State) ->
-  Old = State#state.track,
-  NewTrack = case Node of
-               ?MASTER_NODE->
-                 {_,TrackNode} = Old#track.?MASTER_NODE,
-                 Old#track{?MASTER_NODE = {?MASTER_NODE,maps:remove(Mutation_iterations,TrackNode)}};
-               ?NODE1->
-                 {_,TrackNode} = Old#track.?NODE1,
-                 Old#track{?NODE1 = {?NODE1,maps:remove(Mutation_iterations,TrackNode)}};
-               ?NODE2->
-                 {_,TrackNode} = Old#track.?NODE2,
-                 Old#track{?NODE2 = {?NODE2,maps:remove(Mutation_iterations,TrackNode)}};
-               ?NODE3->
-                 {_,TrackNode} = Old#track.?NODE3,
-                 Old#track{?NODE3 = {?NODE3,maps:remove(Mutation_iterations,TrackNode)}};
-               _-> ok
-             end,
-  removeMutIter(ActiveNodes,Mutation_iterations, State#state{track = NewTrack}).
-
+% Make sure all the nodes have started their Mnesia service.
 collectMnesiaStartMsgs([])-> ok;
 collectMnesiaStartMsgs([S|Slaves])->
   receive
     {S, mnesiaStarted} -> collectMnesiaStartMsgs(Slaves)
   end.
-
+% extract the neurons amount to display in the gui.
 neurons_amount([],Acc)->Acc;
 neurons_amount([Gene|Genes],Acc)-> Curr=hd(Gene),neurons_amount(Genes,Acc+length(Curr#cortex.nids)).
+
+turnOffTimer(TRef) -> RES = timer:cancel(TRef), io:format(RES).
+
+filterNodesMaps([],_, Acc)-> lists:reverse(Acc);
+
+filterNodesMaps([Node|ActiveNodes],Maps, Acc)->
+  {_, Map} = lists:keyfind(Node, 1, Maps),
+  filterNodesMaps(ActiveNodes, Maps, [Map|Acc]).

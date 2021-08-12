@@ -2,7 +2,8 @@
 %%% @author tom
 %%% @copyright (C) 2021, <COMPANY>
 %%% @doc
-%%%
+%%% The module performs a random mutation several times to mutate a current gene
+%%% The mutate function receives a gene and return's it's offspring.
 %%% @end
 %%% Created : 31. Jul 2021 5:16 PM
 %%%-------------------------------------------------------------------
@@ -14,12 +15,14 @@
 %% API
 -export([mutate/1]).
 
+% Function which randomly choose a number of iteration between 1 TO sqrt(NeuronsAmount)
 mutate(G)->
   Cx = hd(G),
   Nids = Cx#cortex.nids,
   NumOfNeurons=length(Nids),
   NUM=round(math:pow(NumOfNeurons,1/2)),
   N=rand:uniform(NUM),
+  % Creates an ETS for internal use
   T = ets:new(genotype,[bag,private]),
   [ets:insert(T,E)||E<-G],
   mutate(T,N,Cx).
@@ -27,6 +30,7 @@ mutate(G)->
 mutate(T,0,_)-> [Head|Tail] = ets:tab2list(T),L = lists:reverse(Tail),
   New_Genotype = [hd(L)]++[Head]++tl(L),New_Genotype;
 
+% randomly select a mutation operation
 mutate(T,N,Cx)->
   X = rand:uniform(8),
   case X of
@@ -47,7 +51,9 @@ mutate(T,N,Cx)->
     8-> %io:format("ChangeAF:~n"),
       changeAF(T,N,Cx)
   end.
+%%%-------------------------------------------------------------------
 
+% Sets a new bias to a randomly choose neuron
 setBias(T,N,Cx)->
   Nids = Cx#cortex.nids,
   I=rand:uniform(length(Nids)),
@@ -60,7 +66,7 @@ setBias(T,N,Cx)->
   ets:insert(T,U_N),
   mutate(T,N-1,Cx).
 
-
+% deletes a bias to a randomly choose neuron
 removeBias(T,N,Cx)->
   Nids = Cx#cortex.nids,
   I=rand:uniform(length(Nids)),
@@ -72,8 +78,8 @@ removeBias(T,N,Cx)->
   ets:delete_object(T,Neuron),
   ets:insert(T,U_N),
   mutate(T,N-1,Cx).
-
-
+%%%-------------------------------------------------------------------
+% Adds an edge between randomly picked 2 neurons, the edge direction is forward only to prevent loops
 addEdge(T,N,Cx)->
   From_list = Cx#cortex.sensor_ids++Cx#cortex.nids,
   {Name_from,Id_from} = lists:nth(rand:uniform(length(From_list)), From_list),
@@ -122,6 +128,8 @@ addEdge(Tab,Name_from,Id_from,neuron,Id_to,to)->
   U_N = To_table#neuron{input_idps=New},
   ets:delete_object(Tab,To_table), ets:insert(Tab,U_N), Tab.
 
+%%%-------------------------------------------------------------------
+% removes an edge between randomly picked 2 neurons, the edge direction is forward only to prevent loops
 
 removeEdge(T,N,Cx)->
   Final_layer = lists:max([L||{_,{L,_}} <-Cx#cortex.nids]),
@@ -167,7 +175,8 @@ removeEdge(Tab,Name_from,Id_from,neuron,Id_to,to)->
   ets:delete_object(Tab,To_table),
   ets:insert(Tab,U_N), Tab.
 
-
+%%%-------------------------------------------------------------------
+% Change a weight to a randomly picked neuron
 changeWeight(T,N,Cx)->
   Nids = Cx#cortex.nids,
   I=rand:uniform(length(Nids)),
@@ -187,7 +196,8 @@ changeWeight(T,N,Cx)->
       mutate(T,N-1,Cx)
   end.
 
-
+%%%-------------------------------------------------------------------
+% add a neuron with randomly picked params
 addNeuron(T,N,Cx)->
   Old = Cx#cortex.nids,
   Layer = rand:uniform(lists:max([L||{_,{L,_}} <- Old])-1),
@@ -206,8 +216,10 @@ addNeuron(T,N,Cx)->
   Tab2 = addEdge(Tab1,neuron,{Layer,N_id},Name_to,Id_to,from),
   Tab3=addEdge(Tab2,neuron,{Layer,N_id},Name_to,Id_to,to),
   mutate(Tab3,N-1,New_Cx).
+%%%-------------------------------------------------------------------
 
-
+% remove a neuron, while removing the neuron's edges. connect it's input neurons to it's output neurons
+% instead of leaving a hole in the network.
 removeNeuron(T,N,Cx)->
   Layers = [L||{_,{L,_}} <-Cx#cortex.nids],
   Final_layer = lists:max(Layers),
@@ -229,7 +241,21 @@ removeNeuron(T,N,Cx)->
       ets:delete_object(New_Tab,Chosen_Neuron),
       mutate(Tab,N-1,New_Cx)
   end.
+%%%-------------------------------------------------------------------
 
+% Change the activation function of a certain gene
+changeAF(T,N,Cx)->
+  Nids = Cx#cortex.nids,
+  I=rand:uniform(length(Nids)),
+  Id_chosen = lists:nth(I, Nids),
+  Neuron = hd(ets:select(T, [{#neuron{id=Id_chosen, cx_id='_', af='_', input_idps = '_',output_ids='_'}, [], ['$_']}])),
+  U_N = Neuron#neuron{af = lists:nth(rand:uniform(length(?AF_list)), ?AF_list)},
+  ets:delete_object(T,Neuron),
+  ets:insert(T,U_N),
+  mutate(T,N-1,Cx).
+%%%-------------------------------------------------------------------
+%%% General utilities
+%%%-------------------------------------------------------------------
 
 change_input(T,_,[],_)->T;
 change_input(T,Inputs,[{Name,Id}|Outputs],Id_chosen)->
@@ -242,7 +268,6 @@ change_input(T,Inputs,[{Name,Id}|Outputs],Id_chosen)->
   ets:delete_object(T,Chosen),
   ets:insert(T,U_Chosen),
   change_input(T,Inputs,Outputs,Id_chosen).
-
 
 change_output(T,[],_,_)->T;
 change_output(T,[{Name,Id}|Inputs],Outputs,Id_chosen)->
@@ -272,16 +297,5 @@ legal_edge(Tab, Id_to)->
     false-> true
   end.
 
-
-
-changeAF(T,N,Cx)->
-  Nids = Cx#cortex.nids,
-  I=rand:uniform(length(Nids)),
-  Id_chosen = lists:nth(I, Nids),
-  Neuron = hd(ets:select(T, [{#neuron{id=Id_chosen, cx_id='_', af='_', input_idps = '_',output_ids='_'}, [], ['$_']}])),
-  U_N = Neuron#neuron{af = lists:nth(rand:uniform(length(?AF_list)), ?AF_list)},
-  ets:delete_object(T,Neuron),
-  ets:insert(T,U_N),
-  mutate(T,N-1,Cx).
 
 

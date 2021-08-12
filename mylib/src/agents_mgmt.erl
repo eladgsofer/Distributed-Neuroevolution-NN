@@ -3,6 +3,10 @@
 %%% @copyright (C) 2021, <COMPANY>
 %%% @doc
 %%%
+%%% This module is a supervisor agents module. it responsible to make sure that
+%%% Every agent is alive and able to perform it's tasks. each populationFSM
+%%% Own a supervisor server. in case an agent falls, the supervisor restarts it.
+
 %%% @end
 %%% Created : 01. Aug 2021 7:20 PM
 %%%-------------------------------------------------------------------
@@ -22,7 +26,7 @@
 -include("config.hrl").
 
 %%%===================================================================
-%%% API functions
+%%% API Functions
 %%%===================================================================
 start_link_shell(CollectorPid, NNids, AgentIds) ->
   ServerId = utills:generateServerId(?MODULE),
@@ -64,7 +68,7 @@ init([CollectorPid, NNids, AgentIds, ServerId]) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-
+% A function which generates the agents specs.
 generateChildrensSpecs(NNids, AgentIds, CollectorPid) ->
   AgentIdsZipped = lists:zip(NNids, AgentIds),
   [#{id=>AgentId,

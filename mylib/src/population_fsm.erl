@@ -2,7 +2,7 @@
 %%% @author elad.sofer
 %%% @copyright (C) 2021, <COMPANY>
 %%% @doc
-%%%
+
 %%% @end
 %%% Created : 29. Jul 2021 10:13 PM
 %%%-------------------------------------------------------------------
@@ -21,12 +21,22 @@
 -define(SERVER, ?MODULE).
 
 
--record(population_fsm_state, {}).
 -include("records.hrl").
 
-%%%===================================================================
-%%% API
-%%%===================================================================
+%% @doc ===================================================================
+%%% This module represents an FSM PC's population.
+
+%%% calc_mode - the FSM starts in a calc_mode, and waits for a trigger from the master_sever
+%%% when the trigger received it orders to start the evolution process via
+%%%  commanding all it's agents' pool to deliver an offspring and deliver it's score.
+%%% afterwards it transfer to fitting_state.
+
+%%% fitting_state - in the fitting state, the FSM waits until all the agents' pool sends
+%%% a sync message, letting it know it finished to create an offspring and score and the
+%%% agent inserted the result to the DB. After all agents finished. it sends a done atom to
+%%% the master_server and move to calc_state, waiting for a master trigger again
+
+%%% @end ===================================================================
 
 %% @doc Creates a gen_statem process which calls Module:init/1 to
 %% initialize. To ensure a synchronized start-up procedure, this
@@ -52,6 +62,7 @@ init({NN_Amount, Sim_Steps, ServerId, MasterPid, EnvParams}) ->
   % Start the agents supervisor
   {ok, AgentsMgmt} = agents_mgmt:start_link(CollectorPid, NNids, AgentsIds),
 
+  % Init the state's data
   StateData = #pop_state{
     simSteps = Sim_Steps,
     serverId = ServerId,
@@ -166,13 +177,13 @@ fitting_state(cast, {sync, AgentId}, #pop_state{mutIter = MutIter, masterPid = M
 %% terminate. It should be the opposite of Module:init/1 and do any
 %% necessary cleaning up. When it returns, the gen_statem terminates with
 %% Reason. The return value is ignored.
-terminate(_Reason, _StateName, _State = #population_fsm_state{}) -> ok.
-
+terminate(_Reason, _StateName, _State) -> ok.
 
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
 
+% Function which broadcast an executeIteration message to all of FSM agents pool.
 broadCastAgents(Genes, AgentsIds, MutIter)->
   AgentsGenesZip = lists:zip(Genes, AgentsIds),
   ExecFunc = fun(ExecData) -> {Gene, Agent} = ExecData,
@@ -180,4 +191,5 @@ broadCastAgents(Genes, AgentsIds, MutIter)->
   % execute all the agents async
   lists:foreach(ExecFunc, AgentsGenesZip).
 
+% Function which creates an empty message bank
 createAgentsMapper(AgentsIds) ->  maps:from_list([{A, false} ||A<-AgentsIds]).
