@@ -276,13 +276,13 @@ findSlaves()->
 
 restartIteration(State, MutIter, ActiveNodes)->
   database:delete_all_mutateIter(MutIter),
-  io:format("BEFORE:~n~p~n", [State#state.track#track.?TOM]),
+  io:format("BEFORE:~n~p~n", [State#state.track#track.?MASTER_NODE]),
   io:format("BEFORE:~n~p~n", [State#state.track#track.?NODE1]),
   io:format("BEFORE:~n~p~n", [State#state.track#track.?NODE2]),
   io:format("BEFORE:~n~p~n", [State#state.track#track.?NODE3]),
 
   Updated_State = removeMutIter(ActiveNodes,MutIter,State),
-  io:format("AFTER:~n~p~n", [State#state.track#track.?TOM]),
+  io:format("AFTER:~n~p~n", [State#state.track#track.?MASTER_NODE]),
   io:format("AFTER:~n~p~n", [State#state.track#track.?NODE1]),
   io:format("AFTER:~n~p~n", [State#state.track#track.?NODE2]),
   io:format("AFTER:~n~p~n", [State#state.track#track.?NODE3]),
