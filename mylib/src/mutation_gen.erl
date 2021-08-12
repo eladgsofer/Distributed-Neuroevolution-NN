@@ -6,7 +6,7 @@
 %%% @end
 %%% Created : 31. Jul 2021 5:16 PM
 %%%-------------------------------------------------------------------
--module(mutate).
+-module(mutation_gen).
 -author("tom").
 -include("records.hrl").
 -define(AF_list, [tanh,cos,sin,sigmoid]).
@@ -195,7 +195,7 @@ addNeuron(T,N,Cx)->
   {Name_to,Id_to} = lists:nth(rand:uniform(length(To_list)),To_list),
   From_list = [{Name,{L,Id}}||{Name,{L,Id}} <-Old,L < Layer]++Cx#cortex.sensor_ids,
   {Name_from,Id_from} = lists:nth(rand:uniform(length(From_list)),From_list),
-  N_id = constructor:generate_id(),
+  N_id = genotype_gen:generate_id(),
   Neuron = #neuron{id ={neuron,{Layer,N_id}},cx_id = Cx#cortex.id,af = tanh, input_idps=[{bias,rand:uniform()-0.5}],output_ids=[]},
   ets:insert(T,Neuron),
   New_Cx = Cx#cortex{nids = [Neuron#neuron.id]++Old},

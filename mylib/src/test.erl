@@ -31,11 +31,11 @@ slave()->
 
 test1() ->
   ETS = ets:new(tab, [set]),
-  G = constructor:construct_Genotype(nn1,rng,pts, [4]),
+  G = genotype_gen:construct_Genotype(nn1,rng,pts, [4]),
   io:format("BEFORE:~n~p~n", [G]),
-  MutatedGene = mutate:mutate(G),
+  MutatedGene = mutation_gen:mutate(G),
   io:format("AFTER:~n~p~n", [MutatedGene]),
-  exoself:map(nn1,MutatedGene).
+  phenotype_gen:map(nn1,MutatedGene).
 
 test_agent_sim()->
   G = [{cortex,
@@ -160,7 +160,7 @@ test_agent_sim()->
         {bias,0.1578607353528323}],
       [{neuron,{3,6.141167187141186e-10}},
         {neuron,{3,6.141167187141191e-10}}]}],
-  exoself:map(test, G).
+  phenotype_gen:map(test, G).
   %agent:start_link(self(), nonode@nohost, agent1),
   %RES = gen_server:call(agent1, {run_simulation, G}),
   %io:format("Wait for message... my pid is~p~n", [self()]),
@@ -169,7 +169,7 @@ test_agent_sim()->
   %end.
 
 test_agent_iter()->
-  G = constructor:construct_Genotype(nn1,rng,pts, [4]),
+  G = genotype_gen:construct_Genotype(nn1,rng,pts, [4]),
   agent:start_link(self(), nonode@nohost, agent1),
   RES = gen_server:cast(agent1, {executeIteration, 1, G}),
   io:format("Wait for message... my pid is~p~n", [self()]).
@@ -184,15 +184,15 @@ test_supervisor(NN_Amount)->
 
 generateServerId()-> list_to_atom(atom_to_list(node()) ++ "_" ++ atom_to_list(?MODULE)).
 
-tom()->  G = constructor:construct_Genotype(nn1,rng,pts, [4,5,8,6,7]),
+tom()->  G = genotype_gen:construct_Genotype(nn1,rng,pts, [4,5,8,6,7]),
   MutatedGene = mu(G,1000),
   io:format("Finish Mutate:~p~n",[MutatedGene]),
-  exoself:map(nn1,MutatedGene).
+  phenotype_gen:map(nn1,MutatedGene).
 
 mu(G,0)->G;
-mu(G,Cnt)->mu(mutate:mutate(G),Cnt-1).
+mu(G,Cnt)->mu(mutation_gen:mutate(G),Cnt-1).
 
-gen()-> constructor:construct_Genotype(nn1,rng,pts, [4,3]).
+gen()-> genotype_gen:construct_Genotype(nn1,rng,pts, [4,3]).
 
 
 

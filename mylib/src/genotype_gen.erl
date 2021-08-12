@@ -1,4 +1,4 @@
--module(constructor).
+-module(genotype_gen).
 -compile(export_all).
 -compile([debug_info]).
 -include("records.hrl").
