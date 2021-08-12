@@ -10,24 +10,21 @@
 -compile(export_all).
 -include("records.hrl").
 
-gen(ExoSelf_PId,Node)->
-	spawn(Node,?MODULE,loop,[ExoSelf_PId]).
+gen(PhenotypePid,Node)-> spawn(Node,?MODULE,operatingModeLoop,[PhenotypePid]).
 
 % Init state
-loop(PhenotypePid) ->
+operatingModeLoop(PhenotypePid) ->
 	receive 
 		{PhenotypePid, {Id,Cx_PId,SensorName,VL,Fanout_PIds, RabbitVector}} ->
-			loop(Id,Cx_PId,SensorName,VL,Fanout_PIds, RabbitVector)
+			operatingModeLoop(Id,Cx_PId,SensorName,VL,Fanout_PIds, RabbitVector)
 	end.
 
-loop(Id,Cx_PId,SensorName,VL,Fanout_PIds,[RabbitLoc| RabbitVector])->
+operatingModeLoop(Id,Cx_PId,SensorName,VL,Fanout_PIds,[RabbitLoc| RabbitVector])->
 	receive
-		{Cx_PId,sync,Hunter_loc}->
-			%io:format("HUNTER!!||~p||Rabbit!!~p~n", RabbitLoc, Hunter_loc),
+		{Cx_PId,sync,Hunter_loc}-> % receive a new hunter location from cortex
 			Input_vec = RabbitLoc++Hunter_loc,
-			%io:format("Sensor input vector: ~p~n",[Input_vec]),
-			%SensoryVector = sensor:SensorName(VL),
+			% forward the input vector to the output neurons
 			[Pid ! {self(),forward,Input_vec} || Pid <- Fanout_PIds],
-			loop(Id,Cx_PId,SensorName,VL,Fanout_PIds, RabbitVector);
-		{Cx_PId,terminate} -> ok
+			operatingModeLoop(Id,Cx_PId,SensorName,VL,Fanout_PIds, RabbitVector);
+		{Cx_PId, terminate} -> ok
 	end.

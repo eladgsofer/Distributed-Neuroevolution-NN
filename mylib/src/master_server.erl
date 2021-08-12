@@ -47,20 +47,20 @@
 %% @end
 %% ---------------------------------------------------
 % Start a king master_Server
-start_king(Layers,Max_Mutation_iterations,Simulation_steps,NN_amount)->
-  start_link(Layers,Max_Mutation_iterations,Simulation_steps,NN_amount,true).
+start_king(Layers,Max_Mutation_iterations,NN_amount)->
+  start_link(Layers,Max_Mutation_iterations,NN_amount,true).
 % Start a king master_Server
-start_slave(Layers,Max_Mutation_iterations,Simulation_steps,NN_amount)->
-  start_link(Layers,Max_Mutation_iterations,Simulation_steps,NN_amount,false).
+start_slave(Layers,Max_Mutation_iterations,NN_amount)->
+  start_link(Layers,Max_Mutation_iterations,NN_amount,false).
 
-start_link(Layers,Max_Mutation_iterations,Simulation_steps,NN_amount,IsMaster) ->
+start_link(Layers,Max_Mutation_iterations,NN_amount,IsMaster) ->
   ServerId =
     case IsMaster of
       true  -> king;
       false-> utills:generateServerId(?MODULE)
     end,
 
-  gen_server:start_link({global, ServerId}, ?MODULE, [Layers,Max_Mutation_iterations,Simulation_steps,NN_amount,IsMaster, ServerId], []).
+  gen_server:start_link({global, ServerId}, ?MODULE, [Layers,Max_Mutation_iterations,NN_amount,IsMaster, ServerId], []).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -76,7 +76,7 @@ start_link(Layers,Max_Mutation_iterations,Simulation_steps,NN_amount,IsMaster) -
 %% @end
 %% ---------------------------------------------------
 
-init([Layers,Max_Mutation_iterations,Simulation_steps,NN_amount, IsMaster, ServerId]) ->
+init([Layers,Max_Mutation_iterations,NN_amount, IsMaster, ServerId]) ->
   % avoid a bug.
   register(ServerId, self()),
 

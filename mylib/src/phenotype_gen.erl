@@ -5,13 +5,13 @@
 -include("config.hrl").
 
 
-map()-> map(ffnn).
-map(FileName)->
+bringGeneToLife()-> bringGeneToLife(ffnn).
+bringGeneToLife(FileName)->
 	{ok,Genotype} = file:consult(FileName),
-	spawn(phenotype_gen,map,[FileName,Genotype]).
+	spawn(phenotype_gen,bringGeneToLife,[FileName,Genotype]).
 
 % FileName with NN_ID
-map(FileName, Genotype)->
+bringGeneToLife(FileName, Genotype)->
 	% Tracking pids to kill the network
 	IdsNPIds = ets:new(idsNpids,[set,private]),
 	[Cx|CerebralUnits] = Genotype,
@@ -21,17 +21,17 @@ map(FileName, Genotype)->
 	NIds = Cx#cortex.nids,
 
 	% Spawn all entities
-	spawn_CerebralUnits(IdsNPIds,cortex,[Cx#cortex.id]),
-	spawn_CerebralUnits(IdsNPIds,sensor,Sensor_Ids),
-	spawn_CerebralUnits(IdsNPIds,actuator,Actuator_Ids),
-	spawn_CerebralUnits(IdsNPIds,neuron,NIds),
+	spawn_NN_ComponentsType(IdsNPIds,cortex,[Cx#cortex.id]),
+	spawn_NN_ComponentsType(IdsNPIds,sensor,Sensor_Ids),
+	spawn_NN_ComponentsType(IdsNPIds,actuator,Actuator_Ids),
+	spawn_NN_ComponentsType(IdsNPIds,neuron,NIds),
 
 	% Counting how many processes in this Mutation iteration
 	ProcessesCount = length(Sensor_Ids ++ Actuator_Ids ++ NIds) + 1,
 
 	% Initialize entities
 	link_CerebralUnits(CerebralUnits,IdsNPIds),
-	link_Cortex(Cx,IdsNPIds), %TODO transfer cortex the simulation steps
+	link_Cortex(Cx,IdsNPIds), 
 	Cx_PId = ets:lookup_element(IdsNPIds,Cx#cortex.id,2),
 	receive
 		% Writing to a file in the end of the process
@@ -46,7 +46,7 @@ map(FileName, Genotype)->
 		% update the genotype score
 	end.
 
-spawn_CerebralUnits(IdsNPIds,CerebralUnitType,[Id|Ids])->
+spawn_NN_ComponentsType(IdsNPIds,CerebralUnitType,[Id|Ids])->
 
 	PId = case CerebralUnitType of
 					actuator-> InitLoc = ?HUNTER_INIT_LOC,
@@ -57,9 +57,9 @@ spawn_CerebralUnits(IdsNPIds,CerebralUnitType,[Id|Ids])->
 	ets:insert(IdsNPIds,{Id,PId}),
 	ets:insert(IdsNPIds,{PId,Id}),
 
-	spawn_CerebralUnits(IdsNPIds,CerebralUnitType,Ids);
-spawn_CerebralUnits(_IdsNPIds,_CerebralUnitType,[])-> true.
-%We spawn the process for each element based on its type: CerebralUnitType, and the gen function that belongs to the CerebralUnitType module. We then enter the {Id,PId} tuple into our ETS table for later use.
+	spawn_NN_ComponentsType(IdsNPIds,CerebralUnitType,Ids);
+spawn_NN_ComponentsType(_IdsNPIds,_CerebralUnitType,[])-> true.
+
 
 link_CerebralUnits([R|Records],IdsNPIds) when is_record(R,sensor) ->
 	SId = R#sensor.id,
@@ -132,7 +132,7 @@ convert_PIdPs2IdPs(IdsNPIds,[{PId,Weights}|Input_PIdPs],Acc)->
 	convert_PIdPs2IdPs(IdsNPIds,Input_PIdPs,[{ets:lookup_element(IdsNPIds,PId,2),Weights}|Acc]);
 convert_PIdPs2IdPs(_IdsNPIds,[Bias],Acc)->
 	lists:reverse([{bias,Bias}|Acc]).
-%For every {N_Id,PIdPs} tuple the update_genotype/3 function extracts the neuron with the id: N_Id, and updates its weights. The convert_PIdPs2IdPs/3 performs the conversion from PIds to Ids of every {PId,Weights} tuple in the Input_PIdPs list. The updated Genotype is then returned back to the caller.
+
 
 generateRabbitPatrol()->
 	[[I,I]||I<-lists:seq(1,?SIM_ITERATIONS)].

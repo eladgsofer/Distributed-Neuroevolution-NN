@@ -44,7 +44,7 @@ init([CollectorPid, NNid, AgentId]) ->
 % via creating the phenotype and executes the simulation of the Rabbit/Hunter
 handle_call({run_simulation, Gene}, _From, State = #agent_state{agentId = AgentId}) ->
   % the AgentId is: <node>_nn<X> atom
-  {_, _, SimulationVec} = phenotype_gen:map(AgentId,Gene),
+  {_, _, SimulationVec} = phenotype_gen:bringGeneToLife(AgentId,Gene),
   {reply, {ok, SimulationVec}, State}.
 
 % this is the request for generating a new offspring and send the scores, the amount of processes
@@ -55,7 +55,7 @@ handle_cast({executeIteration, MutId, Gene}, State = #agent_state{nnId=NNid, col
   % log file for tracking the created genes.
   FileName = list_to_atom("logs/" ++ atom_to_list(AgentId) ++ "_" ++integer_to_list(MutId)),
   % bring to life the gene
-  {Score, ProcessesCount, _} = phenotype_gen:map(FileName, MutatedGene),
+  {Score, ProcessesCount, _} = phenotype_gen:bringGeneToLife(FileName, MutatedGene),
   %io:format("NNid:~p|Score:~p|Processes Count:~p~n",[AgentId, Score, ProcessesCount]),
 
   database:write(NNid,MutId,MutatedGene,ProcessesCount, Score),
@@ -71,7 +71,3 @@ terminate(_Reason, _State = #agent_state{}) ->
 
 code_change(_OldVsn, State = #agent_state{}, _Extra) ->
   {ok, State}.
-
-%%%===================================================================
-%%% Internal functions
-%%%===================================================================

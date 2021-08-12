@@ -46,7 +46,7 @@ test1() ->
   io:format("BEFORE:~n~p~n", [G]),
   MutatedGene = mutation_gen:mutate(G),
   io:format("AFTER:~n~p~n", [MutatedGene]),
-  phenotype_gen:map(nn1,MutatedGene).
+  phenotype_gen:bringGeneToLife(nn1,MutatedGene).
 
 test_agent_iter()->
   G = genotype_gen:construct_Genotype(nn1,rng,pts, [4]),
@@ -61,7 +61,7 @@ generateServerId()-> list_to_atom(atom_to_list(node()) ++ "_" ++ atom_to_list(?M
 tom()->  G = genotype_gen:construct_Genotype(nn1,rng,pts, [4,5,8,6,7]),
   MutatedGene = mu(G,1000),
   io:format("Finish Mutate:~p~n",[MutatedGene]),
-  phenotype_gen:map(nn1,MutatedGene).
+  phenotype_gen:bringGeneToLife(nn1,MutatedGene).
 
 mu(G,0)->G;
 mu(G,Cnt)->mu(mutation_gen:mutate(G),Cnt-1).

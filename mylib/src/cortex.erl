@@ -3,44 +3,43 @@
 -include("records.hrl").
 -include("config.hrl").
 
-gen(PhenoTypePid,Node)-> spawn(Node,?MODULE,loop,[PhenoTypePid]).
+gen(PhenoTypePid,Node)-> spawn(Node,?MODULE,operatingModeLoop,[PhenoTypePid]).
 
-loop(ExoSelf_PId) ->
+operatingModeLoop(PhenotypePid) ->
 	receive
-		{ExoSelf_PId,{Id,SPIds,APIds,NPIds}, TotSteps} ->
+		{PhenotypePid,{Id,SPIds,APIds,NPIds}, TotSteps} ->
 			put(start_time,now()),
 			Init_loc=?HUNTER_INIT_LOC,
 			[RabbitFLoc|_] = phenotype_gen:generateRabbitPatrol(),
 			FirstSimStep = RabbitFLoc ++ Init_loc,
 			[SPId ! {self(),sync,Init_loc} || SPId <- SPIds],
-			loop(Id,ExoSelf_PId,SPIds,{APIds,APIds},NPIds,TotSteps, {Init_loc, 0, [FirstSimStep]})
+			operatingModeLoop(Id,PhenotypePid,SPIds,{APIds,APIds},NPIds,TotSteps, {Init_loc, 0, [FirstSimStep]})
 	end.
 
 % Terminating the network when simulation is over - backing up the current status
-loop(Id,ExoSelf_PId,SPIds,{_APIds,MAPIds},NPIds,0, {HunterLoc, DistanceAcc, SimulationStepsAcc}) ->
+operatingModeLoop(Id,PhenotypePid,SPIds,{_APIds,MAPIds},NPIds,0, {HunterLoc, DistanceAcc, SimulationStepsAcc}) ->
 	Neuron_IdsNWeights = get_backup(NPIds,[]),
 	Fitness_Score = math:sqrt(DistanceAcc), % Euclead Norm
 	SimStepsVec = lists:reverse(SimulationStepsAcc),
 	% backup the network in a file
-	ExoSelf_PId ! {self(),score_and_backup, {Neuron_IdsNWeights, Fitness_Score, SimStepsVec}},
+	PhenotypePid ! {self(),score_and_backup, {Neuron_IdsNWeights, Fitness_Score, SimStepsVec}},
 	% Terminating all the network
-	[PId ! {self(),terminate} || PId <- SPIds],
-	[PId ! {self(),terminate} || PId <- MAPIds],
-	[PId ! {self(),termiante} || PId <- NPIds];
+	terminateNN(SPIds, MAPIds, NPIds);
 
-loop(Id,ExoSelf_PId,SPIds,{[APId|APIds],MAPIds},NPIds,Step, {_, DistanceAcc, SimulationStepsAcc}) ->
+operatingModeLoop(Id,PhenotypePid,SPIds,{[APId|APIds],MAPIds},NPIds,Step, {_, DistanceAcc, SimulationStepsAcc}) ->
 	receive
 		{APId,sync,HunterLoc} ->
+			% received a sync that a forward propagation completed.
 			{CurrDist, SimStep} = calcDistance(Step, HunterLoc),
-			loop(Id,ExoSelf_PId,SPIds,{APIds,MAPIds},NPIds,Step,{HunterLoc, CurrDist+DistanceAcc, [SimStep|SimulationStepsAcc]});
+			operatingModeLoop(Id,PhenotypePid,SPIds,{APIds,MAPIds},NPIds,Step,{HunterLoc, CurrDist+DistanceAcc, [SimStep|SimulationStepsAcc]});
 		terminate ->
-			[PId ! {self(),terminate} || PId <- SPIds],
-			[PId ! {self(),terminate} || PId <- MAPIds],
-			[PId ! {self(),termiante} || PId <- NPIds]
+			% Terminating all the network
+			terminateNN(SPIds, MAPIds, NPIds)
 	end;
-loop(Id,ExoSelf_PId,SPIds,{[],MAPIds},NPIds,Step, {Hunter_loc, DistanceAcc, SimulationStepsAcc})->
+
+operatingModeLoop(Id,PhenotypePid,SPIds,{[],MAPIds},NPIds,Step, {Hunter_loc, DistanceAcc, SimulationStepsAcc})->
 	[PId ! {self(),sync,Hunter_loc} || PId <- SPIds],
-	loop(Id,ExoSelf_PId,SPIds,{MAPIds,MAPIds},NPIds,Step-1,{Hunter_loc, DistanceAcc, SimulationStepsAcc}).
+	operatingModeLoop(Id,PhenotypePid,SPIds,{MAPIds,MAPIds},NPIds,Step-1,{Hunter_loc, DistanceAcc, SimulationStepsAcc}).
 
 get_backup([NPId|NPIds],Acc)->
 	NPId ! {self(),get_backup},
@@ -59,3 +58,8 @@ calcDistance(Step, HunterLoc)->
 	
 	Distance = math:pow(R_X-H_X,2) + math:pow(R_Y-H_Y,2),
 	{Distance, [R_X, R_Y, H_X, H_Y]}.
+
+terminateNN(SPIds, MAPIds, NPIds)->
+	% Terminating all the network
+	NN_Components = SPIds ++ MAPIds ++ NPIds,
+	[NN_CompPid ! {self(),terminate} || NN_CompPid <- NN_Components].
