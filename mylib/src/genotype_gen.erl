@@ -1,18 +1,20 @@
 -module(genotype_gen).
 -compile(export_all).
--compile([debug_info]).
 -include("records.hrl").
 -include("config.hrl").
 
-construct_Genotype(FileName, SensorName,ActuatorName,HiddenLayerDensities)->
+-define(SENSOR_INPUT, 4).
+-define(ACTUATOR_OUTPUT, 2).
+
+construct_Genotype(FileName,HiddenLayerDensities)->
 	% Creating The data structures records
-	S = create_Sensor(SensorName),
-	A = create_Actuator(ActuatorName),
+	Sensor = #sensor{id={sensor,generate_id()},name=rng,vl=?SENSOR_INPUT},
+	Actuator = #actuator{id={actuator,generate_id()},name=pts,vl=?ACTUATOR_OUTPUT},
 	Cx_Id = {cortex,generate_id()},
 
-	Output_VL = A#actuator.vl,
+	Output_VL = Actuator#actuator.vl,
 	LayerDensities = lists:append(HiddenLayerDensities,[Output_VL]),
-	Neurons = create_NeuroLayers(Cx_Id,S,A,LayerDensities),
+	Neurons = create_NeuroLayers(Cx_Id, Sensor, Actuator,LayerDensities),
 
 	% Neurons including all the layers
 	[Input_Layer|_] = Neurons, 
@@ -24,31 +26,12 @@ construct_Genotype(FileName, SensorName,ActuatorName,HiddenLayerDensities)->
 
 	% Create Cortex, Acutator, Sensor
 	NIds = [N#neuron.id || N <- lists:flatten(Neurons)],
-	Sensor = S#sensor{cx_id = Cx_Id, fanout_ids = FL_NIds},
-	Actuator = A#actuator{cx_id=Cx_Id,fanin_ids = LL_NIds},
-	Cortex = create_Cortex(Cx_Id,[S#sensor.id],[A#actuator.id],NIds),
+	Sensor = Sensor#sensor{cx_id = Cx_Id, fanout_ids = FL_NIds},
+	Actuator = Actuator#actuator{cx_id=Cx_Id,fanin_ids = LL_NIds},
+	Cortex = create_Cortex(Cx_Id,[Sensor#sensor.id],[Actuator#actuator.id],NIds),
 
 	% Genotype
-	Genotype = lists:flatten([Cortex,Sensor,Actuator|Neurons]),
-	% write to a file & DB
-	%writeLog(FileName, Genotype),
-	Genotype.
-
-	create_Sensor(SensorName) -> 
-		case SensorName of
-			rng ->
-				#sensor{id={sensor,generate_id()},name=rng,vl=4};
-			_ ->
-				exit("System does not yet support a sensor by the name:~p.",[SensorName])
-		end.
-	
-	create_Actuator(ActuatorName) ->
-		case ActuatorName of
-			pts ->
-				#actuator{id={actuator,generate_id()},name=pts,vl=2};
-			_ ->
-				exit("System does not yet support an actuator by the name:~p.",[ActuatorName])
-		end.
+	Genotype = lists:flatten([Cortex,Sensor,Actuator|Neurons]), Genotype.
 
 	create_NeuroLayers(Cx_Id,Sensor,Actuator,LayerDensities) ->
 		% Sensor template id - not full
@@ -80,13 +63,13 @@ construct_Genotype(FileName, SensorName,ActuatorName,HiddenLayerDensities)->
 		create_NeuroLayer(_Cx_Id,_Input_IdPs,[],_Output_Ids,Acc) -> Acc.
 
 		create_Neuron(Input_IdPs,Id,Cx_Id,Output_Ids)-> 
-			Proper_InputIdPs = create_NeuralInput(Input_IdPs,[]), 
+			Proper_InputIdPs = create_NeuralInput(Input_IdPs,[]),
 			#neuron{id=Id,cx_id = Cx_Id,af=tanh,input_idps=Proper_InputIdPs,output_ids=Output_Ids}. 
 
 			create_NeuralInput([{Input_Id,Input_VL}|Input_IdPs],Acc) ->
 				% create weights for every neuron
 				Weights = create_NeuralWeights(Input_VL,[]),
-				create_NeuralInput(Input_IdPs,[{Input_Id,Weights}|Acc]); 
+				create_NeuralInput(Input_IdPs,[{Input_Id,Weights}|Acc]);
 			create_NeuralInput([],Acc)-> 
 				lists:reverse([{bias,rand:uniform()-0.5}|Acc]).
 			 
@@ -96,19 +79,14 @@ construct_Genotype(FileName, SensorName,ActuatorName,HiddenLayerDensities)->
 					create_NeuralWeights(Index-1,[W|Acc]). 
 
 			generate_ids(0,Acc) ->
-				Acc; 
-			generate_ids(Index,Acc)-> 
-				Id = generate_id(), 
-				generate_ids(Index-1,[Id|Acc]). 
-	 
+				Acc;
+			generate_ids(Index,Acc)->
+				Id = generate_id(),
+				generate_ids(Index-1,[Id|Acc]).
+
 			generate_id() ->
-				{MegaSeconds,Seconds,MicroSeconds} = now(), 
-				1/(MegaSeconds*1000000 + Seconds + MicroSeconds/1000000). 
+				{MegaSeconds,Seconds,MicroSeconds} = now(),
+				1/(MegaSeconds*1000000 + Seconds + MicroSeconds/1000000).
 
 	create_Cortex(Cx_Id,S_Ids,A_Ids,NIds) ->
 		#cortex{id = Cx_Id, sensor_ids=S_Ids, actuator_ids=A_Ids, nids = NIds}.
-
-writeLog(FileName, Genotype)->
-	{ok, File} = file:open(FileName, write),
-	lists:foreach(fun(X) -> io:format(File, "~p.~n",[X]) end, Genotype),
-	file:close(File).

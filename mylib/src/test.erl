@@ -42,14 +42,14 @@ test_supervisor(NN_Amount)->
 
 test1() ->
   ETS = ets:new(tab, [set]),
-  G = genotype_gen:construct_Genotype(nn1,rng,pts, [4]),
+  G = genotype_gen:construct_Genotype(nn1, [4]),
   io:format("BEFORE:~n~p~n", [G]),
   MutatedGene = mutation_gen:mutate(G),
   io:format("AFTER:~n~p~n", [MutatedGene]),
   phenotype_gen:bringGeneToLife(nn1,MutatedGene).
 
 test_agent_iter()->
-  G = genotype_gen:construct_Genotype(nn1,rng,pts, [4]),
+  G = genotype_gen:construct_Genotype(nn1, [4]),
   agent:start_link(self(), nonode@nohost, agent1),
   RES = gen_server:cast(agent1, {executeIteration, 1, G}),
   io:format("Wait for message... my pid is~p~n", [self()]).
@@ -58,7 +58,7 @@ test_agent_iter()->
 
 generateServerId()-> list_to_atom(atom_to_list(node()) ++ "_" ++ atom_to_list(?MODULE)).
 
-tom()->  G = genotype_gen:construct_Genotype(nn1,rng,pts, [4,5,8,6,7]),
+tom()->  G = genotype_gen:construct_Genotype(nn1, [4,5,8,6,7]),
   MutatedGene = mu(G,1000),
   io:format("Finish Mutate:~p~n",[MutatedGene]),
   phenotype_gen:bringGeneToLife(nn1,MutatedGene).
@@ -66,7 +66,7 @@ tom()->  G = genotype_gen:construct_Genotype(nn1,rng,pts, [4,5,8,6,7]),
 mu(G,0)->G;
 mu(G,Cnt)->mu(mutation_gen:mutate(G),Cnt-1).
 
-gen()-> genotype_gen:construct_Genotype(nn1,rng,pts, [4,3]).
+gen()-> genotype_gen:construct_Genotype(nn1, [4,3]).
 
 
 test_gui()-> L=[[1,1,3,3],

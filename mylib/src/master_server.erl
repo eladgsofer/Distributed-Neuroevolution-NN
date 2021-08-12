@@ -291,7 +291,7 @@ generateSeeds(NN_amount,Layers)-> % Initialize State
   {NNids, AgentsIds} = Env_Params = utills:generateNNIds(1,NN_amount),
   AgentIdsZipped = lists:zip(NNids, AgentsIds),
   Seeds=[#db{nn_id = NNid,mutId =0,
-    gene=genotype_gen:construct_Genotype(AgentId,rng,pts,Layers),
+    gene=genotype_gen:construct_Genotype(AgentId,Layers),
     processes_count = 0,score = 0}||{NNid, AgentId}<-AgentIdsZipped],
   database:write_records(Seeds), Env_Params.
 
