@@ -21,11 +21,11 @@
 -define(SERVER, ?MODULE).
 
 
--record(population_fsm_state, {}).
 -include("records.hrl").
 
 %% @doc ===================================================================
 %%% This module represents an FSM PC's population.
+
 %%% calc_mode - the FSM starts in a calc_mode, and waits for a trigger from the master_sever
 %%% when the trigger received it orders to start the evolution process via
 %%%  commanding all it's agents' pool to deliver an offspring and deliver it's score.
@@ -62,6 +62,7 @@ init({NN_Amount, Sim_Steps, ServerId, MasterPid, EnvParams}) ->
   % Start the agents supervisor
   {ok, AgentsMgmt} = agents_mgmt:start_link(CollectorPid, NNids, AgentsIds),
 
+  % Init the state's data
   StateData = #pop_state{
     simSteps = Sim_Steps,
     serverId = ServerId,
@@ -176,13 +177,13 @@ fitting_state(cast, {sync, AgentId}, #pop_state{mutIter = MutIter, masterPid = M
 %% terminate. It should be the opposite of Module:init/1 and do any
 %% necessary cleaning up. When it returns, the gen_statem terminates with
 %% Reason. The return value is ignored.
-terminate(_Reason, _StateName, _State = #population_fsm_state{}) -> ok.
-
+terminate(_Reason, _StateName, _State) -> ok.
 
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
 
+% Function which broadcast an executeIteration message to all of FSM agents pool.
 broadCastAgents(Genes, AgentsIds, MutIter)->
   AgentsGenesZip = lists:zip(Genes, AgentsIds),
   ExecFunc = fun(ExecData) -> {Gene, Agent} = ExecData,
@@ -190,4 +191,5 @@ broadCastAgents(Genes, AgentsIds, MutIter)->
   % execute all the agents async
   lists:foreach(ExecFunc, AgentsGenesZip).
 
+% Function which creates an empty message bank
 createAgentsMapper(AgentsIds) ->  maps:from_list([{A, false} ||A<-AgentsIds]).

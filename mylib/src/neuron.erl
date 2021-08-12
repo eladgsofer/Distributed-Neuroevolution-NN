@@ -1,8 +1,19 @@
+%%%-------------------------------------------------------------------
+%%% @author elad.sofer
+%%% @copyright (C) 2021, <COMPANY>
+%%% @doc
+%%%
+%%% @end
+%%% Created : 01. Aug 2021 2:23 PM
+%%%-------------------------------------------------------------------
+
 -module(neuron).
 -compile(export_all).
--compile([debug_info]).
 -include("records.hrl").
 
+%%%-------------------------------------------------------------------
+%%% component logic
+%%%-------------------------------------------------------------------
 gen(ExoSelf_PId,Node)->
 	spawn(Node,?MODULE,loop,[ExoSelf_PId]).
 
@@ -43,9 +54,10 @@ loop(Id,Cx_PId,AF,{[],MInput_PIdPs},Output_PIds,Acc)->
 	dot([I|Input],[W|Weights],Acc) -> dot(Input,Weights,I*W+Acc);
 	dot([],[],Acc)-> Acc.
 
-%%%%%
+%%%-------------------------------------------------------------------
 %%% Activation functions
-%%%%%
+%%%-------------------------------------------------------------------
+
 tanh(Val)-> math:tanh(Val).
 
 cos(Val)-> math:cos(Val).

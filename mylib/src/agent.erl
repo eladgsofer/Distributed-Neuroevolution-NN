@@ -2,7 +2,6 @@
 %%% @author elad.sofer
 %%% @copyright (C) 2021, <COMPANY>
 %%% @doc
-
 %%% Agent component - this gen_server station is responsible for executing
 %%% a Generation Iteration. meaning it responsible for mutating a gene to produce an offspring gene,
 %%% running a Rabbit/Hunter simulation upon that offspring, and score it's result via a distance function.
@@ -23,6 +22,7 @@
 -record(agent_state, {nnId, agentId, seedGene, collectorPid}).
 -include("records.hrl").
 -include("config.hrl").
+
 %%%===================================================================
 %%% API Functions
 %%%===================================================================
@@ -35,6 +35,10 @@ init([CollectorPid, NNid, AgentId]) ->
   io:format("Hi I am Agent ~p, Details: CollectorPid:~p|NNid:~p|~n", [AgentId, CollectorPid, NNid]),
 
   {ok, #agent_state{nnId=NNid, collectorPid=CollectorPid, agentId = AgentId}}.
+
+%%%===================================================================
+%%% Requests
+%%%===================================================================
 
 % A simulation request, the function raise the gene to a lively nn with processes,
 % via creating the phenotype and executes the simulation of the Rabbit/Hunter

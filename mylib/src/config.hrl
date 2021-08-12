@@ -11,6 +11,7 @@
 % Systems properties
 -define(SIM_ITERATIONS, 62).
 -define(HUNTER_INIT_LOC, [1,70]).
+-define(TRACK_GENES, false).
 
 % Nodes
 -define(TOM, 'king@Tom-VirtualBox').

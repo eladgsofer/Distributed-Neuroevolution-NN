@@ -42,7 +42,6 @@ loop(Id,Cx_PId,AName,{[],MFanin_PIds}, PrevHunterLoc, Acc)->
 
 pts(Result)-> ok.
 
-
 calcStep(Val)->
 	if
 		(Val < 0.33) and (Val > -0.33) -> 0;

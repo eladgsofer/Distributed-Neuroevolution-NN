@@ -1,3 +1,12 @@
+%%%-------------------------------------------------------------------
+%%% @author Tom
+%%% @copyright (C) 2021, <COMPANY>
+%%% @doc
+%%%
+%%% @end
+%%% Created : 01. Aug 2021 2:23 PM
+%%%-------------------------------------------------------------------
+
 -module(graphic).
 -author("Tom").
 
@@ -35,9 +44,7 @@ update_stat(Statistics) ->
 
 %% @private
 %% @doc Initializes the server
-%-spec(init(Args :: term()) ->
-%  {ok, State :: #main_PC_state{}} | {ok, State :: #main_PC_state{}, timeout() | hibernate} |
-%  {stop, Reason :: term()} | ignore).
+
 init([]) ->
   Width = 1850,
   Height = 1080,
@@ -58,6 +65,9 @@ init([]) ->
 
   MainSizer = wxBoxSizer:new(?wxVERTICAL),
   Font = wxFont:new(15, ?wxFONTFAMILY_DEFAULT, ?wxFONTSTYLE_NORMAL,?wxFONTWEIGHT_BOLD),
+
+  %%%===================================================================
+  %%% Define all the labels/text boxes and other WX objects
 
   Neurons_label = wxStaticText:new(MainPanel, ?wxID_ANY, "Total Neurons:", [{style, ?wxALIGN_RIGHT}]),
   wxStaticText:wrap(Neurons_label,100),
@@ -118,6 +128,9 @@ init([]) ->
   wxTextCtrl:setFont(DiedTXT, Font),
   wxTextCtrl:setEditable(DiedTXT, false),
 
+  %%% define the GUI containers
+  %%%===================================================================
+
   StatsSizer = wxBoxSizer:new(?wxHORIZONTAL),
   NNSIzer = wxBoxSizer:new(?wxHORIZONTAL),
 
@@ -154,12 +167,15 @@ init([]) ->
 
   State = #state{frame = MainFrame, panel = MainPanel},
 
+  %%% Callback function
+  %%%===================================================================
 
   CallBackPaint =	fun(#wx{event = #wxPaint{}}, _wxObj)->
     case ets:lookup_element(stats, mode, 2)==startSimulation of
       true->
         case ets:lookup_element(stats, firstSimStarted, 2)==true of
           true->
+            % destroy the stats UI if simulation started
             wxTextCtrl:destroy(ProcessesTXT),
             wxTextCtrl:destroy(NeuroTXT),
             wxTextCtrl:destroy(FitTXT),
@@ -180,6 +196,7 @@ init([]) ->
             ets:insert(stats,{firstSimStarted,false});
           false -> ok
         end,
+        % show the Rabbit/hunter positions
         {Rabbit_pos,Rabbit_IMG} = ets:lookup_element(gui_db,rabbit,2),
         {Hunter_pos,Hunter_IMG} = ets:lookup_element(gui_db,hunter,2),
         Paint = wxBufferedPaintDC:new(MainPanel),
@@ -194,6 +211,7 @@ init([]) ->
         wxBitmap:destroy(Hunter_BMP),
         wxBufferedPaintDC:destroy(Paint);
       false->
+        % refresh statistics values
         wxTextCtrl:changeValue(DiedTXT, lists:flatten(io_lib:format("~p", [ets:lookup_element(stats, gene_died	 , 2)]))),
         wxTextCtrl:changeValue(ActiveNodesTXT, lists:flatten(io_lib:format("~p", [ets:lookup_element(stats, active	 , 2)]))),
         wxTextCtrl:changeValue(WorkTXT, lists:flatten(io_lib:format("~p", [ets:lookup_element(stats, workload	 , 2)]))),
@@ -227,6 +245,7 @@ init([]) ->
   wxFrame:show(MainFrame),
   {MainFrame, State}.
 
+%%%=======================pick the right image for animation
 
 handle_call({update_img, Rabbit_pos,Hunter_pos}, _From, State = #state{ panel = Panel}) ->
   ets:insert(stats,{mode,startSimulation}),
@@ -258,7 +277,6 @@ handle_cast(_Request, State = #state{}) ->
 
 handle_info(_Info, State = #state{}) ->
   wxWindow:refresh(State#state.panel,[{eraseBackground,false}]),
-
   {noreply, State}.
 
 handle_event(#wx{event = #wxClose{}},State = #state{frame = Frame}) -> % close window event

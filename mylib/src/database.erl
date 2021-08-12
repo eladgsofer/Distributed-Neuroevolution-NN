@@ -22,27 +22,26 @@ createDBSchema([])-> ok;
 createDBSchema(ActiveNodes)->
   mnesia:create_schema(ActiveNodes),
   mnesia:start().
-
+% write records to the DB
 write_records([])->ok;
 write_records([Record|Records])->Fun = fun() ->mnesia:write(Record) end, mnesia:transaction(Fun),
-
   write_records(Records).
 
-
+% write records to the DB
 write(NN_id, MutId, Gene, Processes_count, Score) ->
   Tmp = #db{nn_id = NN_id,mutId = MutId,gene = Gene,processes_count = Processes_count,score = Score},
   Fun = fun() ->mnesia:write(Tmp) end, mnesia:transaction(Fun).
-
+% Read a specific generation records
 read_all_mutateIter(Iter) ->
   F = fun() ->
     Elem = #db{mutId = Iter,nn_id = '_',gene = '_',processes_count = '_',score = '_'},
     mnesia:select(db, [{Elem, [], ['$_']}])
       end,
   mnesia:transaction(F).
-
+% delete all generation records
 delete_all_mutateIter(Iter)-> {atomic,List} = read_all_mutateIter(Iter),
   Fun = fun() -> lists:foreach(fun(Elem)-> mnesia:delete_object(Elem) end,List) end, mnesia:transaction(Fun).
-% Select the best Genes
+% Select the best Genes from a specific generation
 select_best_genes([{NnId,Iter}|Tail]) ->select_best_genes([{NnId,Iter}|Tail],[]).
 select_best_genes([{NnId,Iter}|Tail],Acc)->
   F = fun() ->
