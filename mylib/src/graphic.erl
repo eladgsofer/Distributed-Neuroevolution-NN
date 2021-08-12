@@ -44,6 +44,7 @@ init([]) ->
   ets:new(gui_db,[set,public,named_table]),
   ets:new(stats,[set,public,named_table]),
   ets:insert(stats,{mode,learning}),
+  ets:insert(stats,{position,1}),
   ets:insert(stats,[{process, 0},{neurons, 0},{bestGeneScore, 0}, {gene_died, 0},
     {genration,0},{active,king},{workload,0},{bestGeneID,none}]),
 
@@ -229,7 +230,21 @@ init([]) ->
 
 handle_call({update_img, Rabbit_pos,Hunter_pos}, _From, State = #state{ panel = Panel}) ->
   ets:insert(stats,{mode,startSimulation}),
-  ets:insert(gui_db,{rabbit,{Rabbit_pos,"images/rabbit.bmp"}}),ets:insert(gui_db,{hunter,{Hunter_pos,"images/hunter.bmp"}}),
+  Position = ets:lookup_element(stats, position, 2),
+  case Position of
+    1->ets:insert(gui_db,{rabbit,{Rabbit_pos,"images/dog1.bmp"}}),ets:insert(gui_db,{hunter,{Hunter_pos,"images/cat1.bmp"}}),
+      ets:insert(stats,{position,Position+1});
+    2->ets:insert(gui_db,{rabbit,{Rabbit_pos,"images/dog2.bmp"}}),ets:insert(gui_db,{hunter,{Hunter_pos,"images/cat2.bmp"}}),
+      ets:insert(stats,{position,Position+1});
+    3->ets:insert(gui_db,{rabbit,{Rabbit_pos,"images/dog3.bmp"}}),ets:insert(gui_db,{hunter,{Hunter_pos,"images/cat3.bmp"}}),
+      ets:insert(stats,{position,Position+1});
+    4->ets:insert(gui_db,{rabbit,{Rabbit_pos,"images/dog4.bmp"}}),ets:insert(gui_db,{hunter,{Hunter_pos,"images/cat4.bmp"}}),
+      ets:insert(stats,{position,Position+1});
+    5->ets:insert(gui_db,{rabbit,{Rabbit_pos,"images/dog5.bmp"}}),ets:insert(gui_db,{hunter,{Hunter_pos,"images/cat5.bmp"}}),
+      ets:insert(stats,{position,Position+1});
+    6->ets:insert(gui_db,{rabbit,{Rabbit_pos,"images/dog6.bmp"}}),ets:insert(gui_db,{hunter,{Hunter_pos,"images/cat6.bmp"}}),
+      ets:insert(stats,{position,1})
+  end,
   {reply, ok, State};
 
 

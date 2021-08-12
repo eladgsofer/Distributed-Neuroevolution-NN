@@ -253,9 +253,9 @@ chooseBest(Mutation_iterations,State)->%%mnesia:force_load_table(db),
 
 display([],_)-> turnOffTimer;
 display([[R_X,R_Y,H_X,H_Y]|Path],Statistics)->
-  graphic:update_location({R_X*20,R_Y*20},{H_X*20,H_Y*20}),
-  timer:sleep(500),
-  io:format("CurrentPath~p~n", [Path]),
+  graphic:update_location({R_X*10,R_Y*10},{H_X*10,H_Y*10}),
+  timer:sleep(130),
+  %io:format("CurrentPath~p~n", [Path]),
   display(Path,Statistics).
 
 generateSeeds(NN_amount,Layers)-> % Initialize State
