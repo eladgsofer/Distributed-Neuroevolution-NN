@@ -11,22 +11,16 @@
 -include("records.hrl").
 -include("config.hrl").
 
--define(DB_ACTION_DELAY, 2000).
--define(DB_CREATE_TABLE_DELAY, 2500).
 %% API
 -export([init/1, createDBSchema/1,init/0,write/5,read_all_mutateIter/1,select_best_genes/1,write_records/1,delete_all_mutateIter/1,get/1]).
 
 init()->init([]).
 init(Node_List) ->
-  timer:sleep(?DB_ACTION_DELAY),
-  Tb = mnesia:create_table(db,[{ram_copies, Node_List},{type, bag},{attributes, record_info(fields, db)}]),
-  timer:sleep(?DB_ACTION_DELAY), Tb.
+  mnesia:create_table(db,[{ram_copies, Node_List},{type, bag},{attributes, record_info(fields, db)}]).
 
 createDBSchema([])-> ok;
 createDBSchema(ActiveNodes)->
-  io:format("Initialize Mnesia DB in Remote Nodes...:~p~n", [ActiveNodes]),
   mnesia:create_schema(ActiveNodes),
-  timer:sleep(?DB_CREATE_TABLE_DELAY),
   mnesia:start().
 
 write_records([])->ok;
