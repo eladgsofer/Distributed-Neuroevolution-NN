@@ -32,18 +32,18 @@ init([CollectorPid, NNid, AgentId]) ->
 
 handle_call({run_simulation, Gene}, _From, State = #agent_state{agentId = AgentId}) ->
   % the AgentId is: <node>_nnX atom
-  {_, _, SimulationVec} = exoself:map(AgentId,Gene),
+  {_, _, SimulationVec} = phenotype_gen:map(AgentId,Gene),
   % {SrcPid, _} = _From,
   {reply, {ok, SimulationVec}, State}.
 
 handle_cast({executeIteration, MutId, Gene}, State = #agent_state{nnId=NNid, collectorPid=CollectorPid, agentId = AgentId}) ->
   % NNid is the AgentId as well, each agent has it's own network to handle.
 
-  MutatedGene = mutate:mutate(Gene),
+  MutatedGene = mutation_gen:mutate(Gene),
   %io:format("AgentId:~p|Gene:~p|~n",[AgentId, Gene]),
   FileName = list_to_atom("logs/" ++ atom_to_list(AgentId) ++ "_" ++integer_to_list(MutId)),
 
-  {Score, ProcessesCount, _} = exoself:map(FileName, MutatedGene),
+  {Score, ProcessesCount, _} = phenotype_gen:map(FileName, MutatedGene),
   %io:format("NNid:~p|Score:~p|Processes Count:~p~n",[AgentId, Score, ProcessesCount]),
   database:write(NNid,MutId,MutatedGene,ProcessesCount, Score),
   %io:format("CollectorPid:~p~n", [CollectorPid]),

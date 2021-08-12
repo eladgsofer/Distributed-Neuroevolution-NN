@@ -1,4 +1,4 @@
--module(exoself).
+-module(phenotype_gen).
 -compile(export_all).
 
 -include("records.hrl").
@@ -8,7 +8,7 @@
 map()-> map(ffnn).
 map(FileName)->
 	{ok,Genotype} = file:consult(FileName),
-	spawn(exoself,map,[FileName,Genotype]).
+	spawn(phenotype_gen,map,[FileName,Genotype]).
 
 % FileName with NN_ID
 map(FileName, Genotype)->

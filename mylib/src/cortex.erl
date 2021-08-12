@@ -11,7 +11,7 @@ loop(ExoSelf_PId) ->
 		{ExoSelf_PId,{Id,SPIds,APIds,NPIds}, TotSteps} ->
 			put(start_time,now()),
 			Init_loc=?HUNTER_INIT_LOC,
-			[RabbitFLoc|_] = exoself:generateRabbitPatrol(),
+			[RabbitFLoc|_] = phenotype_gen:generateRabbitPatrol(),
 			FirstSimStep = RabbitFLoc ++ Init_loc,
 			[SPId ! {self(),sync,Init_loc} || SPId <- SPIds],
 			loop(Id,ExoSelf_PId,SPIds,{APIds,APIds},NPIds,TotSteps, {Init_loc, 0, [FirstSimStep]})
