@@ -85,7 +85,7 @@ init([Layers,Max_Mutation_iterations,Simulation_steps,NN_amount, IsMaster, Serve
       NNPerNode = round(math:floor(NN_amount/length(findActiveNodes()))),
 
       startPopulationFSM(self(), NNPerNode, Layers, ?SIM_ITERATIONS),
-      %graphic:start(),
+      graphic:start(),
 
       {ok, TimerRef} = timer:send_interval(?TIMER_INTERVAL, self(), check_genotyps),
       State#state{timer_ref=TimerRef, nnPerNode = NNPerNode};
