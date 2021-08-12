@@ -21,7 +21,7 @@
 %%-define(NODE2, 'node2@Tom-VirtualBox').
 %%-define(NODE3, 'node3@Tom-VirtualBox').
 
--define(MASTER_NODE, 'king@132.72.104.105').
+-define(MASTER_NODE, 'king@10.0.2.15').
 -define(NODE1, 'node1@132.72.104.125').
 -define(NODE2, 'node2@132.72.104.171').
 -define(NODE3, 'node3@132.72.104.248').
