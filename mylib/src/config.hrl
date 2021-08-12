@@ -23,5 +23,5 @@
 
 -define(MASTER_NODE, 'king@132.72.104.105').
 -define(NODE1, 'node1@132.72.104.125').
--define(NODE2, 'node2@132.72.104.171').
+-define(NODE2, 'node2@132.72.104.214').
 -define(NODE3, 'node3@132.72.104.248').
