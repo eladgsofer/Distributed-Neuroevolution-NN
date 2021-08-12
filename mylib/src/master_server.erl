@@ -2,7 +2,12 @@
 %%% @author tom
 %%% @copyright (C) 2021, <COMPANY>
 %%% @doc
-%%%
+%%% The master_server is a gen_server OTP which responsible for running the whole show.
+%%% it is responsible for triggering the all the Population FSM's, gather all the Genes scores
+%%% select the best Offsprings and supervise the system. in case a node is down, the master
+%%% changes the PopulationFSM's workload, and change the population NN amount.
+%%% if a master_server is being called as "king" it is responsible for the GUI as well,
+%%% otherwise it just trigger's it's own population FSMs.
 %%% @end
 %%% Created : 04. Aug 2021 3:44 PM
 %%%-------------------------------------------------------------------
@@ -119,6 +124,8 @@ handle_cast({ok, Node, NNids},State)->
   gen_statem:cast({global, Servername}, {runNetwork, Seeds, 1}),
   {noreply, State};
 
+% Update which Population FSM finished to create it's population generation,
+% when all the Population FSM's finished, a new generation will born.
 handle_cast({Node, done, Mutation_iterations}, State) ->
   io:format("Done from:~p~n", [Node]),
   Old = State#state.track,
@@ -148,6 +155,7 @@ handle_info(_Info, State) ->
                true->
                  handleIteration(State, Active_Nodes, Mutate_iteration);
                false ->
+                 % Restart the current iteration, and rebalance node's workload.
                  io:format("#### NODES CHANGED ACTIVE:~p PREV:~p~n", [Active_Nodes, State#state.prev_nodes]),
                  % Update the work per node equally
                  Updated_State_1 = State#state{prev_nodes = Active_Nodes, nnPerNode = round(math:floor(NN_Amount/length(Active_Nodes)))},
@@ -156,8 +164,6 @@ handle_info(_Info, State) ->
                  io:format("Mutate_iteration:~p~n", [Mutate_iteration]),
                  Updated_State_1
 
-                 %Updated_State_2 = restartIteration(Updated_State_1,Mutate_iteration, Active_Nodes),
-                 %handleIteration(Updated_State_2, Active_Nodes, Mutate_iteration-1)
              end,
 
   {noreply, NewState}.
@@ -212,7 +218,7 @@ handleIteration(State,Active_Nodes,Mutate_iteration) ->
     false-> State
   end.
 
-
+% Triggers the population FSM's, to acheive the next offspring generation.
 triggerCalcState(Mutation_iterations,Active_Nodes,Updated_State)-> %%mnesia:force_load_table(db),
   {atomic,List} = database:read_all_mutateIter(Mutation_iterations),
   OffspringGenes = [{Score,{NNid,MutatIter}} || {db,NNid,MutatIter,_,_,Score} <-List],
@@ -232,6 +238,7 @@ triggerCalcState(Mutation_iterations,Active_Nodes,Updated_State)-> %%mnesia:forc
 
   broadcastGenes(BestGenotypes,Active_Nodes,U_S), U_S.
 
+% Cast to all the populations addresses a "trigger" request
 broadcastGenes(BestGenotypes,Active_Nodes,Updated_State)->
   ChosenGenes = [{NNid,MutatIter}||{_,{NNid,MutatIter}} <-BestGenotypes],
   %io:format("ChosenGenes:~p~n", [ChosenGenes]),
@@ -242,6 +249,8 @@ broadcastGenes(BestGenotypes,Active_Nodes,Updated_State)->
   TriggerCalc = fun(PopAddr)-> gen_server:cast({global, PopAddr}, {runNetwork, ChosenGenes, Updated_State#state.mutate_iteration}) end,
   lists:foreach(TriggerCalc, PopAddresses).
 
+% Choosing the best genes for the next generation via selecting from the Parent genes
+% and the newly offsprings
 chooseBest(Mutation_iterations,State)->%%mnesia:force_load_table(db),
   {atomic,List} = database:read_all_mutateIter(Mutation_iterations),
   Filtered = [{Score,{NNid,MutatIter}}||{db,NNid,MutatIter,_,_,Score} <-List],
@@ -251,6 +260,7 @@ chooseBest(Mutation_iterations,State)->%%mnesia:force_load_table(db),
   {db,_,_,Genotype,Processes_cnt,Score_db}=hd(Best_Net),
   {Score_db,Genotype,Processes_cnt}.
 
+% Gui display, update the Rabbit/Hunter locations and statistics.
 display([],_)-> turnOffTimer;
 display([[R_X,R_Y,H_X,H_Y]|Path],Statistics)->
   graphic:update_location({R_X*10,R_Y*10},{H_X*10,H_Y*10}),
@@ -258,6 +268,7 @@ display([[R_X,R_Y,H_X,H_Y]|Path],Statistics)->
   %io:format("CurrentPath~p~n", [Path]),
   display(Path,Statistics).
 
+% Generate the seed Genes
 generateSeeds(NN_amount,Layers)-> % Initialize State
   % Each node create it's own seed
   {NNids, AgentsIds} = Env_Params = utills:generateNNIds(1,NN_amount),
@@ -267,7 +278,7 @@ generateSeeds(NN_amount,Layers)-> % Initialize State
     processes_count = 0,score = 0}||{NNid, AgentId}<-AgentIdsZipped],
   database:write_records(Seeds), Env_Params.
 
-
+% Node monitoring Utilities
 findActiveNodes()->
   NodeList = [?MASTER_NODE, ?NODE1, ?NODE2, ?NODE3],
   [Node || Node<- NodeList, net_kernel:connect_node(Node)==true].
@@ -276,40 +287,7 @@ findSlaves()->
   NodeList = [?NODE1, ?NODE2, ?NODE3],
   [Node || Node<- NodeList, net_kernel:connect_node(Node)==true].
 
-restartIteration(State, MutIter, ActiveNodes)->
-  database:delete_all_mutateIter(MutIter),
-  io:format("BEFORE:~n~p~n", [State#state.track#track.?MASTER_NODE]),
-  io:format("BEFORE:~n~p~n", [State#state.track#track.?NODE1]),
-  io:format("BEFORE:~n~p~n", [State#state.track#track.?NODE2]),
-  io:format("BEFORE:~n~p~n", [State#state.track#track.?NODE3]),
-
-  Updated_State = removeMutIter(ActiveNodes,MutIter,State),
-  io:format("AFTER:~n~p~n", [State#state.track#track.?MASTER_NODE]),
-  io:format("AFTER:~n~p~n", [State#state.track#track.?NODE1]),
-  io:format("AFTER:~n~p~n", [State#state.track#track.?NODE2]),
-  io:format("AFTER:~n~p~n", [State#state.track#track.?NODE3]),
-  Updated_State.
-
-removeMutIter([],_, State) -> State;
-removeMutIter([Node|ActiveNodes],Mutation_iterations, State) ->
-  Old = State#state.track,
-  NewTrack = case Node of
-               ?MASTER_NODE->
-                 {_,TrackNode} = Old#track.?MASTER_NODE,
-                 Old#track{?MASTER_NODE = {?MASTER_NODE,maps:remove(Mutation_iterations,TrackNode)}};
-               ?NODE1->
-                 {_,TrackNode} = Old#track.?NODE1,
-                 Old#track{?NODE1 = {?NODE1,maps:remove(Mutation_iterations,TrackNode)}};
-               ?NODE2->
-                 {_,TrackNode} = Old#track.?NODE2,
-                 Old#track{?NODE2 = {?NODE2,maps:remove(Mutation_iterations,TrackNode)}};
-               ?NODE3->
-                 {_,TrackNode} = Old#track.?NODE3,
-                 Old#track{?NODE3 = {?NODE3,maps:remove(Mutation_iterations,TrackNode)}};
-               _-> ok
-             end,
-  removeMutIter(ActiveNodes,Mutation_iterations, State#state{track = NewTrack}).
-
+% Make sure all the nodes have started their Mnesia service.
 collectMnesiaStartMsgs([])-> ok;
 collectMnesiaStartMsgs([S|Slaves])->
   receive

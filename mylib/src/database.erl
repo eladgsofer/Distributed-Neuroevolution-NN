@@ -2,7 +2,7 @@
 %%% @author elad.sofer
 %%% @copyright (C) 2021, <COMPANY>
 %%% @doc
-%%%
+%%% This module is An Mnesia Connection module. it has all the DB utilities in one module.
 %%% @end
 %%% Created : 01. Aug 2021 2:23 PM
 %%%-------------------------------------------------------------------
@@ -13,11 +13,11 @@
 
 %% API
 -export([init/1, createDBSchema/1,init/0,write/5,read_all_mutateIter/1,select_best_genes/1,write_records/1,delete_all_mutateIter/1,get/1]).
-
+% Create the table
 init()->init([]).
 init(Node_List) ->
   mnesia:create_table(db,[{ram_copies, Node_List},{type, bag},{attributes, record_info(fields, db)}]).
-
+% Create DB Schema
 createDBSchema([])-> ok;
 createDBSchema(ActiveNodes)->
   mnesia:create_schema(ActiveNodes),
@@ -42,7 +42,7 @@ read_all_mutateIter(Iter) ->
 
 delete_all_mutateIter(Iter)-> {atomic,List} = read_all_mutateIter(Iter),
   Fun = fun() -> lists:foreach(fun(Elem)-> mnesia:delete_object(Elem) end,List) end, mnesia:transaction(Fun).
-
+% Select the best Genes
 select_best_genes([{NnId,Iter}|Tail]) ->select_best_genes([{NnId,Iter}|Tail],[]).
 select_best_genes([{NnId,Iter}|Tail],Acc)->
   F = fun() ->

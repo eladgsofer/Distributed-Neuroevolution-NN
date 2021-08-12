@@ -2,7 +2,7 @@
 %%% @author elad.sofer
 %%% @copyright (C) 2021, <COMPANY>
 %%% @doc
-%%%
+%%% This module holds the system configuration
 %%% @end
 %%% Created : 11. Aug 2021 11:03 AM
 %%%-------------------------------------------------------------------

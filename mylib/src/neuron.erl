@@ -15,7 +15,6 @@ loop(ExoSelf_PId) ->
 				true -> ok
 			end, loop(Id,Cx_PId,AF,{Input_PIdPs,Input_PIdPs},Output_PIds,0)
 	end.
-%When gen/2 is executed it spawns the neuron element and immediately begins to wait for its initial state message.
 
 loop(Id,Cx_PId,AF,{[{Input_PId,Weights}|Input_PIdPs],MInput_PIdPs},Output_PIds,Acc)->
 	receive
@@ -43,8 +42,10 @@ loop(Id,Cx_PId,AF,{[],MInput_PIdPs},Output_PIds,Acc)->
 	
 	dot([I|Input],[W|Weights],Acc) -> dot(Input,Weights,I*W+Acc);
 	dot([],[],Acc)-> Acc.
-%The neuron process waits for vector signals from all the processes that it's connected from, taking the dot product of the input and weight vectors, and then adding it to the accumulator. Once all the signals from Input_PIds are received, the accumulator contains the dot product to which the neuron then adds the bias and executes the activation function. After fanning out the output signal, the neuron again returns to waiting for incoming signals. When the neuron receives the {Cx_PId,get_backup} message, it forwards to the cortex its full MInput_PIdPs list, and its Id. The MInput_PIdPs will contain an modified version of the weights once the training/learning algorithm has been added to the system.
 
+%%%%%
+%%% Activation functions
+%%%%%
 tanh(Val)-> math:tanh(Val).
 
 cos(Val)-> math:cos(Val).
@@ -61,4 +62,3 @@ sigmoid(Val)-> %(-1 : 1)--Der:Y*(1-Y)
               Val
           end
       end, 2/(1+math:pow(2.71828183,-V)) - 1.
-%Though in this current implementation the neuron has only the tanh/1 function available to it, we will later extend the system to allow different neurons to use different activation functions.

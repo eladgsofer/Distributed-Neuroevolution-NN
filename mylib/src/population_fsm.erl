@@ -2,7 +2,7 @@
 %%% @author elad.sofer
 %%% @copyright (C) 2021, <COMPANY>
 %%% @doc
-%%%
+
 %%% @end
 %%% Created : 29. Jul 2021 10:13 PM
 %%%-------------------------------------------------------------------
@@ -24,9 +24,19 @@
 -record(population_fsm_state, {}).
 -include("records.hrl").
 
-%%%===================================================================
-%%% API
-%%%===================================================================
+%% @doc ===================================================================
+%%% This module represents an FSM PC's population.
+%%% calc_mode - the FSM starts in a calc_mode, and waits for a trigger from the master_sever
+%%% when the trigger received it orders to start the evolution process via
+%%%  commanding all it's agents' pool to deliver an offspring and deliver it's score.
+%%% afterwards it transfer to fitting_state.
+
+%%% fitting_state - in the fitting state, the FSM waits until all the agents' pool sends
+%%% a sync message, letting it know it finished to create an offspring and score and the
+%%% agent inserted the result to the DB. After all agents finished. it sends a done atom to
+%%% the master_server and move to calc_state, waiting for a master trigger again
+
+%%% @end ===================================================================
 
 %% @doc Creates a gen_statem process which calls Module:init/1 to
 %% initialize. To ensure a synchronized start-up procedure, this

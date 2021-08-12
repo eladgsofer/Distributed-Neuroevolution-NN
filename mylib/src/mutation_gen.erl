@@ -2,7 +2,8 @@
 %%% @author tom
 %%% @copyright (C) 2021, <COMPANY>
 %%% @doc
-%%%
+%%% The module performs a random mutation several times to mutate a current gene
+%%% The mutate function receives a gene and return's it's offspring.
 %%% @end
 %%% Created : 31. Jul 2021 5:16 PM
 %%%-------------------------------------------------------------------
@@ -243,7 +244,6 @@ change_input(T,Inputs,[{Name,Id}|Outputs],Id_chosen)->
   ets:insert(T,U_Chosen),
   change_input(T,Inputs,Outputs,Id_chosen).
 
-
 change_output(T,[],_,_)->T;
 change_output(T,[{Name,Id}|Inputs],Outputs,Id_chosen)->
   case Name of
@@ -272,8 +272,7 @@ legal_edge(Tab, Id_to)->
     false-> true
   end.
 
-
-
+% Change the activation function of a certain gene
 changeAF(T,N,Cx)->
   Nids = Cx#cortex.nids,
   I=rand:uniform(length(Nids)),
