@@ -226,6 +226,8 @@ triggerCalcState(Mutation_iterations,Active_Nodes,Updated_State)-> %%mnesia:forc
   Statistics = [{process, lists:sum(Process_List)*length(Active_Nodes)},{neurons, neurons_amount(Gene_List,0)},
     {bestGeneScore, BestScore}, {gene_died, length(Sortd_by_score)-length(BestGenotypes)},{genration,Mutation_iterations},
     {active,Short_Active_Nodes}, {workload,length(OffspringGenes)/length(Active_Nodes)},{bestGeneID,BestNNid}],
+  io:format("Statistics:~p~n", [Statistics]),
+
   graphic:update_stat(Statistics),
 
   broadcastGenes(BestGenotypes,Active_Nodes,U_S), U_S.
