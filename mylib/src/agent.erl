@@ -16,6 +16,7 @@
 
 -record(agent_state, {nnId, agentId, seedGene, collectorPid}).
 -include("records.hrl").
+-include("config.hrl").
 %%%===================================================================
 %%% Spawning and gen_server implementation
 %%%===================================================================
@@ -26,6 +27,7 @@ start_link(CollectorPid, NNid, AgentId) ->
 init([CollectorPid, NNid, AgentId]) ->
 
   io:format("Hi I am Agent ~p, Details: CollectorPid:~p|NNid:~p|~n", [AgentId, CollectorPid, NNid]),
+
   {ok, #agent_state{nnId=NNid, collectorPid=CollectorPid, agentId = AgentId}}.
 
 handle_call({run_simulation, Gene}, _From, State = #agent_state{agentId = AgentId}) ->
@@ -46,7 +48,7 @@ handle_cast({executeIteration, MutId, Gene}, State = #agent_state{nnId=NNid, col
   database:write(NNid,MutId,MutatedGene,ProcessesCount, Score),
   %io:format("CollectorPid:~p~n", [CollectorPid]),
   %io:format("##########################"),
-  gen_statem:cast({global,CollectorPid}, {sync, AgentId}),
+  gen_statem:cast({global, CollectorPid}, {sync, AgentId}),
   {noreply, State}.
 
 

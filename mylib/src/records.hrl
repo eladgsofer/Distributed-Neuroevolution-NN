@@ -1,15 +1,17 @@
-%% This source code and work is provided and developed by DXNN Research Group WWW.DXNNResearch.COM
-%%
-%Copyright (C) 2012 by Gene Sher, DXNN Research Group, CorticalComputer@gmail.com
-%All rights reserved.
-%
-%This code is licensed under the version 3 of the GNU General Public License. Please see the LICENSE file that accompanies this project for the terms of use.
+%%%-------------------------------------------------------------------
+%%% @author elad.sofer
+%%% @copyright (C) 2021, <COMPANY>
+%%% @doc
+%%% @end
+%%%-------------------------------------------------------------------
+
+% Network entities
 
 -record(sensor, {id, cx_id, name, vl, fanout_ids}).
 -record(actuator,{id, cx_id,  name, vl, fanin_ids}).
 -record(neuron, {id, cx_id, af, input_idps, output_ids}).
 -record(cortex, {id, sensor_ids, actuator_ids, nids}).
 -record(genotype, {nn_id, score, processes_info}).
+
+% NN DB entry
 -record(db, {nn_id, mutId, gene, processes_count, score}).
--define(SIM_ITERATIONS, 62).
--define(HUNTER_INIT_LOC, [1,40]).

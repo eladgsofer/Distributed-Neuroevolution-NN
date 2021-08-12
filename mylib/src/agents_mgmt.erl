@@ -19,6 +19,7 @@
 
 -define(SERVER, ?MODULE).
 -include("records.hrl").
+-include("config.hrl").
 
 %%%===================================================================
 %%% API functions

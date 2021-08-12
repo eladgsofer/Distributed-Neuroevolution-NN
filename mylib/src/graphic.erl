@@ -104,6 +104,7 @@ init([]) ->
   Gen_Label = wxStaticText:new(MainPanel, ?wxID_ANY, "Genration:", [{style, ?wxALIGN_RIGHT}]),
   wxStaticText:wrap(Gen_Label,100),
   GenTXT = wxTextCtrl:new(MainPanel, ?wxID_ANY, [{value, "***************"}, {style, ?wxTE_RIGHT}]),
+
   wxTextCtrl:setFont(Gen_Label, Font),
   wxTextCtrl:setFont(GenTXT, Font),
   wxTextCtrl:setEditable(GenTXT, false),
@@ -203,6 +204,7 @@ init([]) ->
         wxPanel:refresh(DiedTXT),
         wxPanel:refresh(ActiveNodesTXT),
         wxPanel:refresh(WorkTXT),
+
         wxPanel:refresh(ProcessesTXT),
         wxPanel:refresh(FitTXT),
         wxPanel:refresh(NeuroTXT),
@@ -231,6 +233,7 @@ handle_call({update_img, Rabbit_pos,Hunter_pos}, _From, State = #state{ panel = 
   {reply, ok, State};
 
 
+
 handle_call({statistics,Statistics}, _From, State = #state{}) ->
   ets:insert(stats,Statistics),
   {reply, ok, State}.
@@ -240,6 +243,7 @@ handle_cast(_Request, State = #state{}) ->
 
 handle_info(_Info, State = #state{}) ->
   wxWindow:refresh(State#state.panel,[{eraseBackground,false}]),
+
   {noreply, State}.
 
 handle_event(#wx{event = #wxClose{}},State = #state{frame = Frame}) -> % close window event
@@ -251,12 +255,9 @@ handle_event(#wx{event = #wxClose{}},State = #state{frame = Frame}) -> % close w
 handle_event(_Event,State) -> % when left click has been pressed, activate navigation function
   {noreply,State}.
 
-
 terminate(_Reason, _State = #state{}) ->
   ok.
 
 code_change(_OldVsn, State = #state{}, _Extra) ->
   {ok, State}.
-
-
 

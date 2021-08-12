@@ -8,7 +8,6 @@
 %%%-------------------------------------------------------------------
 -module(master_server).
 -author("tom").
--include("records.hrl").
 
 -behaviour(gen_server).
 
@@ -23,18 +22,11 @@
   code_change/3]).
 -compile(export_all).
 
+-include("config.hrl").
+-include("records.hrl").
 
 -define(SERVER, ?MODULE).
 
--define(TOM, 'king@Tom-VirtualBox').
-
--define(ELAD, 'king@pds-MacBook-Pro').
-
--define(MASTER_NODE, ?TOM).
-
--define(NODE1, 'node1@Tom-VirtualBox').
--define(NODE2, 'node2@Tom-VirtualBox').
--define(NODE3, 'node3@Tom-VirtualBox').
 -define(TIMER_INTERVAL, 1000).
 
 -record(state, {nn_amount,nnPerNode,mutate_iteration,max_mutate_iteration, track,prev_nodes, timer_ref, parentGenes}).
@@ -84,21 +76,19 @@ init([Layers,Max_Mutation_iterations,Simulation_steps,NN_amount, IsMaster, Serve
     true->
       ActiveNodes = findActiveNodes(),
       ActiveSlaves = findSlaves(),
-      io:format("ActiveNodes:~p~n", [ActiveNodes]),
-      mnesia:create_schema(ActiveNodes),
-      mnesia:start(),
-
+      database:createDBSchema(ActiveNodes),
       % Trigger Slaves - They start the Mnesia
       lists:foreach(fun(Sl_Node)-> Dest = {utills:generateServerId(Sl_Node, ?MODULE), Sl_Node}, io:format("Dest~p", [Dest]) , Dest ! {king, startSlave} end, ActiveSlaves),
       collectMnesiaStartMsgs(ActiveSlaves),
       database:init(ActiveNodes),
+
       NNPerNode = round(math:floor(NN_amount/length(findActiveNodes()))),
 
       startPopulationFSM(self(), NNPerNode, Layers, ?SIM_ITERATIONS),
-      graphic:start(),
+      %graphic:start(),
 
       {ok, TimerRef} = timer:send_interval(?TIMER_INTERVAL, self(), check_genotyps),
-      {ok, State#state{timer_ref=TimerRef, nnPerNode = NNPerNode}};
+      State#state{timer_ref=TimerRef, nnPerNode = NNPerNode};
 
     false ->
       io:format("Waiting for master...~n"),
@@ -110,8 +100,8 @@ init([Layers,Max_Mutation_iterations,Simulation_steps,NN_amount, IsMaster, Serve
       MasterId = {king, ?MASTER_NODE},
       io:format("STARTING POPULATION~n"),
       startPopulationFSM(MasterId, NNPerNode, Layers, ?SIM_ITERATIONS),
-      {ok, State#state{nnPerNode = NNPerNode}}
-  end, NewState.
+      State#state{nnPerNode = NNPerNode}
+  end, {ok, NewState}.
 
 
 startPopulationFSM(MasterId, NNPerNode,Layers, Simulation_steps)->
@@ -158,6 +148,7 @@ handle_info(_Info, State) ->
                true->
                  handleIteration(State, Active_Nodes, Mutate_iteration);
                false ->
+                 io:format("#### NODES CHANGED ACTIVE:~p PREV:~p~n", [Active_Nodes, State#state.prev_nodes]),
                  % Update the work per node equally
                  Updated_State_1 = State#state{prev_nodes = Active_Nodes, nnPerNode = round(math:floor(NN_Amount/length(Active_Nodes)))},
                  io:format("NEW ACTIVE NODES:~p~n", [Active_Nodes]),
@@ -277,11 +268,11 @@ generateSeeds(NN_amount,Layers)-> % Initialize State
 
 findActiveNodes()->
   NodeList = [?MASTER_NODE, ?NODE1, ?NODE2, ?NODE3],
-  [Node || Node<- NodeList, net_adm:ping(Node)==pong].
+  [Node || Node<- NodeList, net_kernel:connect_node(Node)==true].
 
 findSlaves()->
   NodeList = [?NODE1, ?NODE2, ?NODE3],
-  [Node || Node<- NodeList, net_adm:ping(Node)==pong].
+  [Node || Node<- NodeList, net_kernel:connect_node(Node)==true].
 
 restartIteration(State, MutIter, ActiveNodes)->
   database:delete_all_mutateIter(MutIter),

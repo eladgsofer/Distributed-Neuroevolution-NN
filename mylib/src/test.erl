@@ -6,6 +6,7 @@
 %%%-------------------------------------------------------------------
 -module(test).
 -include("records.hrl").
+-include("config.hrl").
 -record(test,{name1,name2}).
 -compile(export_all).
 %Layers,Max_Mutation_iterations,Simulation_steps,NN_amount,Rabbit_pos,Nodes
@@ -24,6 +25,7 @@ slave()->
   Max_Mutation_iterations=20,
   Simulation_steps=5000,
   NN_amount=4*3*50, % A NUMBER WHICH DIVIDES BY NUMBER OF NODES
+
 
   master_server:start_slave(Layers,Max_Mutation_iterations,Simulation_steps,NN_amount).
 
