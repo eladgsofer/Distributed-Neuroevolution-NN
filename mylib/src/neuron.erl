@@ -8,7 +8,8 @@
 %%%-------------------------------------------------------------------
 
 -module(neuron).
--export([gen/2, operatingModeLoop/1, operatingModeLoop/6]).
+% necessary export_All for dynamic calling
+-compile(export_all).
 -include("records.hrl").
 
 %%%-------------------------------------------------------------------
