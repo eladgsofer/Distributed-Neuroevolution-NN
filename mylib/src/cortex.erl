@@ -1,3 +1,12 @@
+%%%-------------------------------------------------------------------
+%%% @author elad.sofer
+%%% @copyright (C) 2021, <COMPANY>
+%%% @doc
+%%%
+%%% @end
+%%% Created : 01. Aug 2021 2:23 PM
+%%%-------------------------------------------------------------------
+
 -module(cortex).
 -export([gen/2, operatingModeLoop/1, operatingModeLoop/7,get_backup/2,calcDistance/2,terminateNN/3]).
 -include("records.hrl").

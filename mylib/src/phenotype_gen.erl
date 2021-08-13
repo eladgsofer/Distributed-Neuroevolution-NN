@@ -1,4 +1,5 @@
 -module(phenotype_gen).
+% Necessary for dynamic calling
 -compile(export_all).
 
 -include("records.hrl").

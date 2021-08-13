@@ -1,6 +1,6 @@
 -module(genotype_gen).
+% Necessary for dynamic calling
 -compile(export_all).
--compile([debug_info]).
 -include("records.hrl").
 -include("config.hrl").
 
