@@ -7,7 +7,7 @@
 %%% Created : 01. Aug 2021 2:23 PM
 %%%-------------------------------------------------------------------
 -module(sensor).
--compile(export_all).
+-export([gen/2, operatingModeLoop/1, operatingModeLoop/6]).
 -include("records.hrl").
 
 gen(PhenotypePid,Node)-> spawn(Node,?MODULE,operatingModeLoop,[PhenotypePid]).
