@@ -30,8 +30,8 @@
 %%%===================================================================
 start_link_shell(CollectorPid, NNids, AgentIds) ->
   ServerId = utills:generateServerId(?MODULE),
-  {ok, Pid} = supervisor:start_link({local, ServerId}, ?MODULE, [CollectorPid,NNids, AgentIds]),
-  unlink(Pid).
+  {ok, Pid} = supervisor:start_link({local, ServerId}, ?MODULE, [CollectorPid,NNids, AgentIds, ServerId]),
+  unlink(Pid), {ok, Pid}.
 
 start_link(CollectorPid, NNids, AgentIds) ->
   ServerId = utills:generateServerId(?MODULE),
