@@ -140,7 +140,7 @@ calc_state(cast, {runNetwork, BestGenesIds, MutIter}, #pop_state{agentsIds = Age
                  %io:format("agentsMgmt:~p~n", [StateData#pop_state.agentsMgmt]),
                  lists:foreach(fun(ChildSpec)->supervisor:start_child(StateData#pop_state.agentsMgmt, ChildSpec) end, NewAgentsSpecs),
                  io:format("Agent STARTED!!!:~n"),
-                 S = StateData#pop_state{agentsIds=ActiveAgentsIds, nn_amount = GLen, agentsMapper = createAgentsMapper(ActiveAgentsIds), nnIds =NNIds ++ NewNNIds}
+                 StateData#pop_state{agentsIds=ActiveAgentsIds, nn_amount = GLen, agentsMapper = createAgentsMapper(ActiveAgentsIds), nnIds =NNIds ++ NewNNIds}
                  %io:format("################STATE:~p##############~n", [S]), S
              end,
 
