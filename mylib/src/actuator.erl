@@ -9,7 +9,6 @@
 
 -module(actuator).
 -export([gen/3, operatingModeLoop/2, operatingModeLoop/6]).
--compile([debug_info]).
 -include("records.hrl").
 -include("config.hrl").
 

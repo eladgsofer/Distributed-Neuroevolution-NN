@@ -11,15 +11,9 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/4, generateSeeds/2, start_slave/3, start_king/3]).
+-export([start_link/4, generateSeeds/2, start_slave/3, start_king/3, display/2]).
 %% gen_server callbacks
--export([init/1,
-  handle_call/3,
-  handle_cast/2,
-  handle_info/2,
-  terminate/2,
-  code_change/3]).
--compile(export_all).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -include("config.hrl").
 -include("records.hrl").

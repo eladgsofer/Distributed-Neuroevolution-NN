@@ -8,7 +8,7 @@
 %%%-------------------------------------------------------------------
 
 -module(neuron).
--compile(export_all).
+-export([gen/2, operatingModeLoop/1, operatingModeLoop/6]).
 -include("records.hrl").
 
 %%%-------------------------------------------------------------------

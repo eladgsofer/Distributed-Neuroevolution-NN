@@ -1,5 +1,5 @@
 -module(cortex).
--compile(export_all).
+-export([gen/2, operatingModeLoop/1, operatingModeLoop/7,get_backup/2,calcDistance/2,terminateNN/3]).
 -include("records.hrl").
 -include("config.hrl").
 

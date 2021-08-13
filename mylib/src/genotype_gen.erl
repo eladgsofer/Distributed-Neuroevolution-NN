@@ -6,8 +6,8 @@
 
 construct_Genotype(FileName, SensorName,ActuatorName,HiddenLayerDensities)->
 	% Creating The data structures records
-	S = create_Sensor(SensorName),
-	A = create_Actuator(ActuatorName),
+	S = #sensor{id={sensor,generate_id()},name=SensorName,vl=4},
+	A = #actuator{id={actuator,generate_id()},name=ActuatorName,vl=2},
 	Cx_Id = {cortex,generate_id()},
 
 	Output_VL = A#actuator.vl,
@@ -33,22 +33,6 @@ construct_Genotype(FileName, SensorName,ActuatorName,HiddenLayerDensities)->
 	% write to a file & DB
 	%writeLog(FileName, Genotype),
 	Genotype.
-
-	create_Sensor(SensorName) -> 
-		case SensorName of
-			rng ->
-				#sensor{id={sensor,generate_id()},name=rng,vl=4};
-			_ ->
-				exit("System does not yet support a sensor by the name:~p.",[SensorName])
-		end.
-	
-	create_Actuator(ActuatorName) ->
-		case ActuatorName of
-			pts ->
-				#actuator{id={actuator,generate_id()},name=pts,vl=2};
-			_ ->
-				exit("System does not yet support an actuator by the name:~p.",[ActuatorName])
-		end.
 
 	create_NeuroLayers(Cx_Id,Sensor,Actuator,LayerDensities) ->
 		% Sensor template id - not full
