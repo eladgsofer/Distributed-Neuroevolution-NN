@@ -30,8 +30,8 @@ bringGeneToLife(FileName, Genotype)->
 	ProcessesCount = length(Sensor_Ids ++ Actuator_Ids ++ NIds) + 1,
 
 	% Initialize entities
-	link_CerebralUnits(CerebralUnits,IdsNPIds),
-	link_Cortex(Cx,IdsNPIds), 
+	connectNN_Component(CerebralUnits,IdsNPIds),
+	connectCortex(Cx,IdsNPIds),
 	Cx_PId = ets:lookup_element(IdsNPIds,Cx#cortex.id,2),
 	receive
 		% Writing to a file in the end of the process
@@ -61,7 +61,7 @@ spawn_NN_ComponentsType(IdsNPIds,CerebralUnitType,[Id|Ids])->
 spawn_NN_ComponentsType(_IdsNPIds,_CerebralUnitType,[])-> true.
 
 
-link_CerebralUnits([R|Records],IdsNPIds) when is_record(R,sensor) ->
+connectNN_Component([R|Records],IdsNPIds) when is_record(R,sensor) ->
 	SId = R#sensor.id,
 	SPId = ets:lookup_element(IdsNPIds,SId,2),
 	Cx_PId = ets:lookup_element(IdsNPIds,R#sensor.cx_id,2),
@@ -73,9 +73,9 @@ link_CerebralUnits([R|Records],IdsNPIds) when is_record(R,sensor) ->
 	SensoryVector = generateRabbitPatrol(),
 	% Init message
 	SPId ! {self(),{SId,Cx_PId,SName,R#sensor.vl,Fanout_PIds,SensoryVector}},
-	link_CerebralUnits(Records,IdsNPIds);
+	connectNN_Component(Records,IdsNPIds);
 
-link_CerebralUnits([R|Records],IdsNPIds) when is_record(R,actuator) ->
+connectNN_Component([R|Records],IdsNPIds) when is_record(R,actuator) ->
 	AId = R#actuator.id,
 	APId = ets:lookup_element(IdsNPIds,AId,2),
 	Cx_PId = ets:lookup_element(IdsNPIds,R#actuator.cx_id,2),
@@ -83,9 +83,9 @@ link_CerebralUnits([R|Records],IdsNPIds) when is_record(R,actuator) ->
 	Fanin_Ids = R#actuator.fanin_ids,
 	Fanin_PIds = [ets:lookup_element(IdsNPIds,Id,2) || Id <- Fanin_Ids],
 	APId ! {self(),{AId,Cx_PId,AName,Fanin_PIds}},
-	link_CerebralUnits(Records,IdsNPIds);
+	connectNN_Component(Records,IdsNPIds);
 
-link_CerebralUnits([R|Records],IdsNPIds) when is_record(R,neuron) ->
+connectNN_Component([R|Records],IdsNPIds) when is_record(R,neuron) ->
 	NId = R#neuron.id,
 	NPId = ets:lookup_element(IdsNPIds,NId,2),
 	Cx_PId = ets:lookup_element(IdsNPIds,R#neuron.cx_id,2),
@@ -95,16 +95,16 @@ link_CerebralUnits([R|Records],IdsNPIds) when is_record(R,neuron) ->
 	Input_PIdPs = convert_IdPs2PIdPs(IdsNPIds,Input_IdPs,[]),
 	Output_PIds = [ets:lookup_element(IdsNPIds,Id,2) || Id <- Output_Ids],
 	NPId ! {self(),{NId,Cx_PId,AFName,Input_PIdPs,Output_PIds}},
-	link_CerebralUnits(Records,IdsNPIds);
+	connectNN_Component(Records,IdsNPIds);
 
-link_CerebralUnits([],_IdsNPIds)-> ok.
+connectNN_Component([],_IdsNPIds)-> ok.
 
 convert_IdPs2PIdPs(_IdsNPIds,[{bias,Bias}],Acc)->
 	lists:reverse([Bias|Acc]);
 convert_IdPs2PIdPs(IdsNPIds,[{Id,Weights}|Fanin_IdPs],Acc)->
 	convert_IdPs2PIdPs(IdsNPIds,Fanin_IdPs,[{ets:lookup_element(IdsNPIds,Id,2),Weights}|Acc]).
 
-link_Cortex(Cx,IdsNPIds) ->
+connectCortex(Cx,IdsNPIds) ->
 	Cx_Id = Cx#cortex.id,
 	Cx_PId = ets:lookup_element(IdsNPIds,Cx_Id,2),
 	SIds = Cx#cortex.sensor_ids,
