@@ -57,7 +57,6 @@ handle_cast({executeIteration, MutId, Gene}, State = #agent_state{nnId=NNid, col
   FileName = list_to_atom("logs/" ++ atom_to_list(AgentId) ++ "_" ++integer_to_list(MutId)),
   % bring to life the gene
   {Score, ProcessesCount, _} = phenotype_gen:bringGeneToLife(FileName, MutatedGene),
-  %io:format("NNid:~p|Score:~p|Processes Count:~p~n",[AgentId, Score, ProcessesCount]),
 
   database:write(NNid,MutId,MutatedGene,ProcessesCount, Score),
   gen_statem:cast({global, CollectorPid}, {sync, AgentId}),

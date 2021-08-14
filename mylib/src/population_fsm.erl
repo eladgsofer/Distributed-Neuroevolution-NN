@@ -98,10 +98,8 @@ format_status(_Opt, [_PDict, _StateName, _State]) -> Status = some_term, Status.
 %% functions is called when gen_statem receives and event from
 %% call/2, cast/2, or as a normal process message.
 calc_state(cast, {runNetwork, BestGenesIds, MutIter}, #pop_state{agentsIds = AgentsIds, nnIds = NNIds} =  StateData) ->
-  %io:format("Calc state Recevied: ~p~n", [{runNetwork, BestGenesIds, MutIter}]),
 
   Genes = database:select_best_genes(BestGenesIds), ALen = length(AgentsIds), GLen = length(Genes),
-  %io:format("BEST GENES: ~p~n", [Genes]),
 
   NewState = if
                ALen==GLen ->
@@ -123,28 +121,21 @@ calc_state(cast, {runNetwork, BestGenesIds, MutIter}, #pop_state{agentsIds = Age
 
                ALen < GLen ->
                  io:format("###MORE GENES THEN AGENTS~n"),
-
-                 io:format("ALen:~p~n",[ALen]),
-                 io:format("GLen:~p~n",[GLen]),
+                 io:format("Number of agents:~p~n",[ALen]),
+                 io:format("Number of genotyps:~p~n",[GLen]),
 
                  {NewNNIds, NewAgentsIds} = utills:generateNNIds(ALen + 1, GLen), %Tuple of {NNIds, AgentsIds}
-                 %io:format("{NewNNIds, NewAgentsIds}:~p~n",[{NewNNIds, NewAgentsIds}]),
 
                  ActiveAgentsIds = StateData#pop_state.agentsIds ++ NewAgentsIds,
-                 %io:format("ActiveAgentsIds:~p~n",[ActiveAgentsIds]),
 
                  % Creating new agents
                  CollectorPid = utills:generateServerId(population_fsm),
                  NewAgentsSpecs = agents_mgmt:generateChildrensSpecs(NewNNIds, NewAgentsIds,CollectorPid), % CollectorPid?
-                 %io:format("NewAgentsSpecs:~p~n",[NewAgentsSpecs]),
-                 %io:format("agentsMgmt:~p~n", [StateData#pop_state.agentsMgmt]),
                  lists:foreach(fun(ChildSpec)->supervisor:start_child(StateData#pop_state.agentsMgmt, ChildSpec) end, NewAgentsSpecs),
                  io:format("Agent STARTED!!!:~n"),
                  StateData#pop_state{agentsIds=ActiveAgentsIds, nn_amount = GLen, agentsMapper = createAgentsMapper(ActiveAgentsIds), nnIds =NNIds ++ NewNNIds}
-                 %io:format("################STATE:~p##############~n", [S]), S
              end,
 
-  io:format("CALC STATE - EXECUTING AGENTS:~n"),
   broadCastAgents(Genes, NewState#pop_state.agentsIds, MutIter),
   {next_state, fitting_state, NewState#pop_state{mutIter=MutIter}};
 
@@ -158,7 +149,6 @@ fitting_state(cast, {sync, AgentId}, #pop_state{mutIter = MutIter, masterPid = M
   Pred = fun(_,V) -> V =:= false end,
   SyncMapper = maps:filter(Pred,UpdatedMapper),
 
-  %io:format("fitting_staet: got sync from ~p~n", [AgentId]),
   case maps:size(SyncMapper) of
     0 ->
       % prepare an empty mapper

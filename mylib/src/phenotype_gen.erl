@@ -121,11 +121,9 @@ connectCortex(Cx,IdsNPIds) ->
 
 update_genotype(IdsNPIds,Genotype,[{N_Id,PIdPs}|WeightPs])->
 	N = lists:keyfind(N_Id, 2, Genotype),
-	%io:format("PIdPs:~p~n",[PIdPs]),
 	Updated_InputIdPs = convert_PIdPs2IdPs(IdsNPIds,PIdPs,[]),
 	U_N = N#neuron{input_idps = Updated_InputIdPs},
 	U_Genotype = lists:keyreplace(N_Id, 2, Genotype, U_N),
-	%io:format("N:~p~n U_N:~p~n Genotype:~p~n U_Genotype:~p~n",[N,U_N,Genotype,U_Genotype]),
 	update_genotype(IdsNPIds,U_Genotype,WeightPs);
 update_genotype(_IdsNPIds,Genotype,[])-> Genotype.
 

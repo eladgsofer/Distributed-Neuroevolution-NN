@@ -34,21 +34,21 @@ mutate(T,0,_)-> [Head|Tail] = ets:tab2list(T),L = lists:reverse(Tail),
 mutate(T,N,Cx)->
   X = rand:uniform(8),
   case X of
-    1->%io:format("setBias:~n"),
+    1->
       setBias(T,N,Cx);
-    2->%io:format("removeBias:~n"),
+    2->
       removeBias(T,N,Cx);
-    3->%io:format("addEdge:~n"),
+    3->
       addEdge(T,N,Cx);
-    4->%io:format("addNeuron:~n"),
+    4->
       addNeuron(T,N,Cx);
-    5->%io:format("removeEdge:~n"),
+    5->
       removeEdge(T,N,Cx);
-    6->%io:format("changeWeight:~n"),
+    6->
       changeWeight(T,N,Cx);
-    7-> %io:format("removeNeuron:~n"),
+    7->
       removeNeuron(T,N,Cx);
-    8-> %io:format("ChangeAF:~n"),
+    8->
       changeAF(T,N,Cx)
   end.
 %%%-------------------------------------------------------------------

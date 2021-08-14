@@ -166,9 +166,6 @@ handle_info(_Info, State) ->
                  io:format("#### NODES CHANGED ACTIVE:~p PREV:~p~n", [Active_Nodes, State#state.prev_nodes]),
                  % Update the work per node equally
                  Updated_State_1 = State#state{prev_nodes = Active_Nodes, nnPerNode = round(math:floor(NN_Amount/length(Active_Nodes)))},
-                 io:format("NEW ACTIVE NODES:~p~n", [Active_Nodes]),
-                 io:format("NEW nnPerNode:~p~n", [Updated_State_1#state.nnPerNode]),
-                 io:format("Mutate_iteration:~p~n", [Mutate_iteration]),
                  Updated_State_1
 
              end,
@@ -196,7 +193,8 @@ handleIteration(State,Active_Nodes,Mutate_iteration) ->
   Readys = [ready || M <-Maps, maps:find(Mutate_iteration,M)=/=error],
 
   case length(Readys)==length(Active_Nodes) of % Double check that we're fine
-    true-> io:format("handleIteration:~p~n", [Mutate_iteration]),
+    true-> io:format("================================~n"),
+      io:format("handleIteration:~p~n", [Mutate_iteration]),
       case Mutate_iteration==State#state.max_mutate_iteration of
         false->
           Updated_State = State#state{mutate_iteration = Mutate_iteration + 1},
@@ -205,17 +203,10 @@ handleIteration(State,Active_Nodes,Mutate_iteration) ->
           io:format("Final Iteration:~n"),
           {Best_score,Best_Genotype,Processes_cnt} = chooseBest(Mutate_iteration,State),
           io:format("Best_score:~p~n", [Best_score]),
-          %io:format("Best_Genotype:~p~n", [Best_Genotype]),
-          %io:format("Processes_cnt:~p~n", [Processes_cnt]),
+          io:format("Best_Genotype:~p~n", [Best_Genotype]),
           Cx = hd(Best_Genotype),
           Nurons_num = length(Cx#cortex.nids),
-          %io:format("Nurons_num:~p~n", [Nurons_num]),
           Statistics = [{process, Processes_cnt},{neurons, Nurons_num},{fitness, Best_score}],
-
-
-          %io:format("Sending simulation to agent:~p~n", [Agent]),
-
-
           if
             State#state.systemStopped==false ->
               Agent = utills:generateServerId(?MASTER_NODE, nn1),
@@ -249,21 +240,19 @@ triggerCalcState(Mutation_iterations,Active_Nodes,Updated_State)-> %%mnesia:forc
   Statistics = [{process, lists:sum(Process_List)*length(Active_Nodes)},{neurons, neurons_amount(Gene_List,0)},
     {bestGeneScore, BestScore}, {gene_died, length(Sortd_by_score)-length(BestGenotypes)},{genration,Mutation_iterations},
     {active,Short_Active_Nodes}, {workload,length(OffspringGenes)/length(Active_Nodes)},{bestGeneID,BestNNid}],
-  io:format("Statistics:~p~n", [Statistics]),
+
+  io:format("Best iteration score:~p~n", [BestScore]),
+  io:format("Best iteration NN_ID:~p~n", [BestNNid]),
+  io:format("Cuurent active nodes:~p~n", [Short_Active_Nodes]),
 
   graphic:update_stat(Statistics),
-
   broadcastGenes(BestGenotypes,Active_Nodes,U_S), U_S.
 %%%-------------------------------------------------------------------
 
 % Cast to all the populations addresses a "trigger" request
 broadcastGenes(BestGenotypes,Active_Nodes,Updated_State)->
   ChosenGenes = [{NNid,MutatIter}||{_,{NNid,MutatIter}} <-BestGenotypes],
-  %io:format("ChosenGenes:~p~n", [ChosenGenes]),
-
-  % PopAddresses = [{Node, utills:generateServerId(Node, population_fsm)}||Node<-Active_Nodes],
   PopAddresses = [utills:generateServerId(Node, population_fsm)||Node<-Active_Nodes],
-  %io:format("Population Addresses~p~n", [PopAddresses]),
   TriggerCalc = fun(PopAddr)-> gen_server:cast({global, PopAddr}, {runNetwork, ChosenGenes, Updated_State#state.mutate_iteration}) end,
   lists:foreach(TriggerCalc, PopAddresses).
 %%%-------------------------------------------------------------------
@@ -287,7 +276,6 @@ display([],_)-> turnOffTimer;
 display([[R_X,R_Y,H_X,H_Y]|Path],Statistics)->
   graphic:update_location({R_X*7,R_Y*7},{H_X*7,H_Y*7}),
   timer:sleep(130),
-  %io:format("CurrentPath~p~n", [Path]),
   display(Path,Statistics).
 
 % Generate the seed Genes
@@ -318,8 +306,6 @@ collectMnesiaStartMsgs([S|Slaves])->
 % extract the neurons amount to display in the gui.
 neurons_amount([],Acc)->Acc;
 neurons_amount([Gene|Genes],Acc)-> Curr=hd(Gene),neurons_amount(Genes,Acc+length(Curr#cortex.nids)).
-
-turnOffTimer(TRef) -> RES = timer:cancel(TRef), io:format(RES).
 
 filterNodesMaps([],_, Acc)-> lists:reverse(Acc);
 
