@@ -10,7 +10,7 @@
 
 % Systems properties
 -define(SIM_ITERATIONS, 122).
--define(HUNTER_INIT_LOC, [1,70]).
+-define(HUNTER_INIT_LOC, [80,80]).
 -define(TRACK_GENES, false).
 
 % Nodes
