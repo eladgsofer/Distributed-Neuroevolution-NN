@@ -16,20 +16,22 @@
 master()->
 
   Layers=[4,8,5],
-  Max_Mutation_iterations=10,
+  Max_Mutation_iterations=20,
   NN_amount=4*3*50, % A NUMBER WHICH DIVIDES BY NUMBER OF NODES
 
   master_server:start_king(Layers,Max_Mutation_iterations,NN_amount).
 
 slave()->
   Layers=[4,8,5],
-  Max_Mutation_iterations=10,
+  Max_Mutation_iterations=20,
   NN_amount=4*3*50, % A NUMBER WHICH DIVIDES BY NUMBER OF NODES
 
   master_server:start_slave(Layers,Max_Mutation_iterations,NN_amount).
 
 test_supervisor(NN_Amount)->
-  %gen_server:cast(nonode@nohost_nn3, kaki), Example
+  % Crash example
+  % erl -sname king
+  % gen_server:cast('king@Tom-VirtualBox_nn1', crash_test).
   NNnames = [list_to_atom("nn" ++ integer_to_list(N)) || N<-lists:seq(1,NN_Amount)],
   NNids = [{node(), Name} || Name<-NNnames],
   AgentsIds = [list_to_atom(atom_to_list(Node) ++ "_" ++ atom_to_list(Id)) || {Node, Id}<-NNids],
