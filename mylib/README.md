@@ -1,16 +1,8 @@
-mylib
-=====
+Youtube link: https://www.youtube.com/watch?v=gjLjRERK-dA
 
-An OTP application
+This application simulated a hunter rabbit chase, using evolutinal neural network.
 
-Build
------
-
-    $ rebar3 compile
-
-This application simulated a hunter rabbit chase.
-
-INSTRACTIONS:
+Install INSTRACTIONS:
 1.Do git clone https://github.com/eladsofer879/EralngNN.git
 2.Open config.hrl file and config your nodes name as node1/node2/mode3/king and ip's.
 3.Open 4 terminals.
