@@ -16,6 +16,9 @@ Project overview:
 
 Youtube link of the performance of the trained NN: https://www.youtube.com/watch?v=gjLjRERK-dA
 
+
+<img width="774" alt="image" src="https://github.com/user-attachments/assets/e4cf0942-d3db-47e6-a082-c582a0f691ab">
+
 Files:
 
 1) Summary powerpoint
